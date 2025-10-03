@@ -1,0 +1,8 @@
+qiskit==0.39.0
+z3-solver
+pysmt
+pyzx
+python-sat[pblib,aiger]
+numpy
+sympy
+matplotlib
