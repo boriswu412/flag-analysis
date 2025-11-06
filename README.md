@@ -44,10 +44,10 @@ python flag_analysis.py
 - `flagX`, `flagZ` — flag qubits in X or Z basis
 
 **Gates:**
-- Supported: `cx` (CNOT), `cz`, and `notnot` (two‑qubit X‑X gate)
+- Supported: `cx` (CNOT), `cz`
 - Hadamard gates on ancillas or flags are replaced by basis changes (X ↔ Z)
 - Measurements are omitted from QASM
-- Reused qubits in flag circuits are treated as distinct logical qubits
+- Reused qubits in flag circuits are treated as distinct  qubits
 
 ### `stab.txt`
 Defines the parity‑check matrix (first X, then Z rows). Row order must match ancilla order.
@@ -58,10 +58,10 @@ Defines the parity‑check matrix (first X, then Z rows). Row order must match a
 
 The verification includes **four steps**:
 
-1. **Syndrome correctness:** verify expected syndromes with no faults.
+1. **Syndrome correctness:** verify when no faults in the flag circuit the circuit is a syndrome extraction circuit.
 2. **Fault detection:** find gates that cause high‑weight errors → stored in `bad_location`.
 3. **Flag check:** verify faults on bad gates trigger at least one flag.
-4. **Syndrome uniqueness:** check combined circuits produce unique syndromes.
+4. **Syndrome uniqueness:** check after a round of flag circuit and a round of no flag circuit the generalized syndrome is unique up to degenracy.
 
 Each step should output **“Success.”**
 
