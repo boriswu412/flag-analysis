@@ -1591,6 +1591,9 @@ def check_flag_raised(qasm_path: str, stab_txt_path: str,num_gates: int, bad_loc
         print("Result:")
         print("Success : when high-weight error happens, at least one of the flag qubits raised")
     if s.check() == sat:
+        print("Result:")
+        print("Failure : there exists a high-weight error where none of the flag qubits raised ")
+        print("Counterexample model:")
         for d in s.model().decls(): 
         
             val = s.model()[d]
@@ -1711,11 +1714,13 @@ def check_generalised_syndrome_uniqueness(
     s.add(one_fault_constr_p2)
 
 
-   
+    print("Result:")
     if s.check() == unsat :
+       
         print("Success: every error maps to different generalised syndrome")
 
     if s.check() == sat:
+        print("Failure: there exists two different errors that map to the same generalised syndrome")
         print("The model that would cause different errors map to the same generalised syndrome:")
         for d in s.model().decls(): 
     
