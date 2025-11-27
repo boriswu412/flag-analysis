@@ -1,0 +1,54 @@
+{
+    "start_node": "root",
+    "nodes": {
+        "root": {
+            "instructions": [
+                "circuit_round_1"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "flag_measure"
+                }
+            ]
+        },
+        "flag_measure": {
+            "instructions": [
+                "flag_measure_circuit"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "s_1",
+                        "right": "s_2"
+                    },
+                    "target": "correction_branch"
+                },
+                {
+                    "condition": {
+                        "type": "not",
+                        "operand": {
+                            "type": "equal",
+                            "left": "s_1",
+                            "right": "s_2"
+                        }
+                    },
+                    "target": "normal_branch"
+                }
+            ]
+        },
+        "correction_branch": {
+            "instructions": [
+                "apply_correction"
+            ],
+            "branches": []
+        },
+        "normal_branch": {
+            "instructions": [
+                "normal_decoding"
+            ],
+            "branches": []
+        }
+    }
+}
