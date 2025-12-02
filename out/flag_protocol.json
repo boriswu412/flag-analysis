@@ -1,0 +1,151 @@
+{
+    "start_node": "root",
+    "nodes": {
+        "root": {
+            "instructions": [
+                "flagged_syndrome_1"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "not",
+                        "operand": {
+                            "type": "equal",
+                            "left": "f_1",
+                            "right": 0
+                        }
+                    },
+                    "target": "r_1_flagged"
+                },
+                {
+                    "condition": {
+                        "type": "not",
+                        "operand": {
+                            "type": "equal",
+                            "left": "f_1",
+                            "right": 0
+                        }
+                    },
+                    "target": "r_1_not_flagged"
+                }
+            ]
+        },
+        "r_1_flagged": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "ter_1"
+                }
+            ]
+        },
+        "ter_1": {
+            "instructions": [],
+            "branches": []
+        },
+        "r_1_not_flagged": {
+            "instructions": [
+                "flagged_syndrome_2"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "not",
+                        "operand": {
+                            "type": "equal",
+                            "left": "f_2",
+                            "right": 0
+                        }
+                    },
+                    "target": "r_2_flagged"
+                },
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_2",
+                                "right": 0
+                            },
+                            {
+                                "type": "not",
+                                "operand": {
+                                    "type": "equal",
+                                    "left": "s_2",
+                                    "right": "s_1"
+                                }
+                            }
+                        ]
+                    },
+                    "target": "r_2_not_flagged_and_s2_neq_s1"
+                },
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_2",
+                                "right": 0
+                            },
+                            {
+                                "type": "equal",
+                                "left": "s_2",
+                                "right": "s_1"
+                            }
+                        ]
+                    },
+                    "target": "r_2_not_flagged_and_s2_eq_s1"
+                }
+            ]
+        },
+        "r_2_flagged": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "ter_2"
+                }
+            ]
+        },
+        "ter_2": {
+            "instructions": [],
+            "branches": []
+        },
+        "r_2_not_flagged_and_s2_neq_s1": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "ter_3"
+                }
+            ]
+        },
+        "ter_3": {
+            "instructions": [],
+            "branches": []
+        },
+        "r_2_not_flagged_and_s2_eq_s1": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "ter_4"
+                }
+            ]
+        },
+        "ter_4": {
+            "instructions": [],
+            "branches": []
+        }
+    }
+}

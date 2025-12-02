@@ -1113,7 +1113,9 @@ def check_ancillas_match_symplectic_ordered(qasm_path: str,
     
     
     ancillas = (ancX + ancZ) if order == "X-then-Z" else (ancZ + ancX)
-
+    print(f"Total ancillas considered: {len(ancillas)}")
+    for a in ancillas:
+        print("Ancilla formula:", a)
     # Stabilizer anticommute formulas from txt (exact line order)
     gens = load_symplectic_txt(stab_txt_path)
     stabs = [anticomm_formula(Sx, Sz, varenv) for (Sx, Sz) in gens]
@@ -1382,6 +1384,7 @@ def prove_syndrome_extractions(qasm_path: str, stab_txt_path: str):
     flgX_exprs = flags_X(state, groups["flagX"])     # flags measured in X (check .z)
     flgZ_exprs = flags_Z(state, groups["flagZ"])     # flags measured in Z (check .x)
 
+    
     # Build an assignment:
     # - allow arbitrary data errors via named vars (you can set a subset True)
     # - force all anc/flag variables to False to model "no circuit faults"
@@ -1425,9 +1428,11 @@ def prove_syndrome_extractions(qasm_path: str, stab_txt_path: str):
     print("Result of ordered ancilla vs stabilizer check:") 
     if  report["ok"]:
         print("Success : ancilla measurements match stabilizers in order.")
+        return True
     else:
       for mi in report["mismatches"]:
           print(f"  Mismatch at stabilizer index {mi}")
+      return False
 
 
 
@@ -1590,6 +1595,8 @@ def check_flag_raised(qasm_path: str, stab_txt_path: str,num_gates: int, bad_loc
     if s.check() == unsat : 
         print("Result:")
         print("Success : when high-weight error happens, at least one of the flag qubits raised")
+
+        return True
     if s.check() == sat:
         print("Result:")
         print("Failure : there exists a high-weight error where none of the flag qubits raised ")
@@ -1599,8 +1606,8 @@ def check_flag_raised(qasm_path: str, stab_txt_path: str,num_gates: int, bad_loc
             val = s.model()[d]
             if str(val)  == "True": 
                 print(f"{d.name()} = {val}")
-
-
+                
+        return False
 
 def check_generalised_syndrome_uniqueness(
     qasm_path: str,
@@ -1646,7 +1653,8 @@ def check_generalised_syndrome_uniqueness(
     A = [state.qubits[i].z for i in ancx_idxs] + [state.qubits[i].x for i in ancz_idxs]
     F = [state.qubits[i].z for i in flagx_idxs] + [state.qubits[i].x for i in flagz_idxs]
 
-    print("Processing the no flag circuit")
+
+    
     after_raw_state, snap = symbolic_propagate_with_resets( clean_qc ,state, track_steps= True)
 
     raw_anc_err_var = []
@@ -1671,16 +1679,20 @@ def check_generalised_syndrome_uniqueness(
     #print("one_fault_constr_p1", one_fault_constr_p1)
     #print("one_fault_constr_p2", one_fault_constr_p2)
 
-
-    
-
-    
-
-
     A_1 = primed_copy(A, ren_1)
     A_2 = primed_copy(A, ren_2)
     F_1 = primed_copy(F, ren_1)
     F_2 = primed_copy(F, ren_2)
+
+    for a in F:
+        print("Flag syndrome formula:", simplify(a))
+    for i in range(len(F_1)) : 
+        print(f"{i}Flag syndrome formula p1:", eval_with_values(F_1[i], {"faulty_gate24_x1_p1" : True, "faulty_gate24_z0_p1" : True}, default_false=True) )
+    
+    for i in range(len(F_2)) : 
+        print(f"{i}Flag syndrome formula p2:", eval_with_values(F_1[i], {"faulty_gate27_z0_p2" : True}, default_false=True))
+    
+    print("Processing the no flag circuit")
 
     
 
@@ -1699,8 +1711,27 @@ def check_generalised_syndrome_uniqueness(
 
     gen_syn_1 = A_1 + F_1 + raw_A_1
     gen_syn_2 = A_2 + F_2 + raw_A_2
+    
+    p1 = {"faulty_gate5_z0_p1" : True, "faulty_gate5_x1_p1" : True,  "faulty_gate5_x0_p1" : True}
+    p2 = {"faulty_gate11_z0_p2" : True, "faulty_gate11_x0_p2" : True}
+    for i in range(len(A_1)) :
+        print(f"{i} Ancilla syndrome formula p1:", eval_with_values(A_1[i], p1, default_false=True) )
 
+    for i in range((len(F_1))) :
+        print(f"{i} Flag syndrome formula p1:", eval_with_values( F_1[i], p1, default_false=True) )
 
+    for i in range(len(raw_A_1)) :
+        print(f"{i} Raw Ancilla syndrome formula p1:", eval_with_values( raw_A_1[i], p1, default_false=True) )
+
+    for i in range(len(A_2)) :
+        print(f"{i} Ancilla syndrome formula p2:", eval_with_values(A_2[i], p2, default_false=True) )
+    for i in range((len(F_2))) :
+        print(f"{i} Flag syndrome formula p2:", eval_with_values( F_2[i], p2, default_false=True) )
+
+    for i in range(len(raw_A_2)) :
+        print(f"{i} Raw Ancilla syndrome formula p2:", eval_with_values( raw_A_2[i], p2, default_false=True) )
+
+    
     stab_eq , gsel = exists_stab_equiv(E_x_1, E_z_1, E_x_2, E_z_2, stab_txt_path)
 
 
@@ -1719,6 +1750,8 @@ def check_generalised_syndrome_uniqueness(
        
         print("Success: every error maps to different generalised syndrome")
 
+        return True 
+
     if s.check() == sat:
         print("Failure: there exists two different errors that map to the same generalised syndrome")
         print("The model that would cause different errors map to the same generalised syndrome:")
@@ -1727,6 +1760,8 @@ def check_generalised_syndrome_uniqueness(
             val = s.model()[d]
             if str(val)  == "True": 
                 print(f"{d.name()} = {val}")
+
+        return False
     
 
 
@@ -1740,7 +1775,7 @@ def main():
     #print(f"Number of gates in the circuit: {num_gates}")
 
     print("Step 1: Proving the circuit is etracts syndrome correctly when no fault in the circuit")
-    prove_syndrome_extractions(str(qasm_path), str(stab_txt_path))
+    step_1 = prove_syndrome_extractions(str(qasm_path), str(stab_txt_path))
 
     print("\nStep 2: Finding bad locations in the circuit")
 
@@ -1748,11 +1783,17 @@ def main():
 
     
     print("\nStep 3: Checking if flag is raised when high weight error occurs")
-    check_flag_raised(str(qasm_path), str(stab_txt_path),num_gates,bad_location)
+    step_3 = check_flag_raised(str(qasm_path), str(stab_txt_path),num_gates,bad_location)
 
     print("\nStep 4: Checking two non-degenerate error dont map to same generalised syndrome")
-    check_generalised_syndrome_uniqueness(str(qasm_path), str(stab_txt_path),bad_location)
+    step_4 = check_generalised_syndrome_uniqueness(str(qasm_path), str(stab_txt_path),bad_location)
 
+    if step_1 and step_3 and step_4 :
+        print("\nOverall Result: The flag circuit passes all the checks!")
+        return True
+    else :
+        print("\nOverall Result: The flag circuit fails one or more checks.")
+        return False
 
 
     

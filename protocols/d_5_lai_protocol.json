@@ -1,0 +1,172 @@
+{
+    "start_node": "root",
+    "nodes": {
+        "root": {
+            "instructions": [
+                "flagged_syndrome_1"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "s_1",
+                                "right": 0
+                            },
+                            {
+                                "type": "equal",
+                                "left": "f_1",
+                                "right": 0
+                            }
+                        ]
+                    },
+                    "target": "all_zero"
+                },
+                {
+                    "condition": {
+                        "type": "not",
+                        "operand": {
+                            "type": "and",
+                            "operands": [
+                                {
+                                    "type": "equal",
+                                    "left": "s_1",
+                                    "right": 0
+                                },
+                                {
+                                    "type": "equal",
+                                    "left": "f_1",
+                                    "right": 0
+                                }
+                            ]
+                        }
+                    },
+                    "target": "not_all_zero"
+                }
+            ]
+        },
+        "all_zero": {
+            "instructions": [],
+            "branches": []
+        },
+        "not_all_zero": {
+            "instructions": [
+                "flagged_syndrome_2"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_2",
+                        "right": 0
+                    },
+                    "target": "flag_2_all_zero"
+                },
+                {
+                    "condition": {
+                        "type": "not",
+                        "operand": {
+                            "type": "equal",
+                            "left": "f_2",
+                            "right": 0
+                        }
+                    },
+                    "target": "flag_2_not_all_zero"
+                }
+            ]
+        },
+        "flag_2_not_all_zero": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "ter_1"
+                }
+            ]
+        },
+        "ter_1": {
+            "instructions": [],
+            "branches": []
+        },
+        "flag_2_all_zero": {
+            "instructions": [
+                "flagged_syndrome_3"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_3",
+                                "right": 0
+                            },
+                            {
+                                "type": "equal",
+                                "left": "s_3",
+                                "right": "s_2"
+                            }
+                        ]
+                    },
+                    "target": "r_3_all_zero"
+                },
+                {
+                    "condition": {
+                        "type": "not",
+                        "operand": {
+                            "type": "and",
+                            "operands": [
+                                {
+                                    "type": "equal",
+                                    "left": "f_3",
+                                    "right": 0
+                                },
+                                {
+                                    "type": "equal",
+                                    "left": "s_3",
+                                    "right": "s_2"
+                                }
+                            ]
+                        }
+                    },
+                    "target": "r_3_not_all_zero"
+                }
+            ]
+        },
+        "r_3_not_all_zero": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "ter_3"
+                }
+            ]
+        },
+        "r_3_all_zero": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "ter_2"
+                }
+            ]
+        },
+        "ter_2": {
+            "instructions": [],
+            "branches": []
+        },
+        "ter_3": {
+            "instructions": [],
+            "branches": []
+        }
+    }
+}
