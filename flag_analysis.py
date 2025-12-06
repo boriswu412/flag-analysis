@@ -8,7 +8,7 @@ from typing import List, Tuple, Dict, Optional
 from pathlib  import Path
 
 from circuit_op import *
-from build_protocol import *
+from protocol import *
 
 from qiskit import QuantumCircuit
 
@@ -110,9 +110,49 @@ from qiskit import QuantumCircuit, QuantumRegister
 
 
 
+# ---------------------------
+# Tools for state
+# ---------------------------
+def state_to_raw_expr_dict(state: CircuitXZ, groups: dict):
+    """
+    Convert CircuitXZ + groups into:
+        {
+          "data":  [QubitXZ, ...],
+          "ancX":  [QubitXZ, ...],
+          "ancZ":  [QubitXZ, ...],
+          "flagX": [QubitXZ, ...],
+          "flagZ": [QubitXZ, ...],
+        }
+    with list order matching groups[gname].
+    """
+    out = {}
+    for gname in ["data", "ancX", "ancZ", "flagX", "flagZ"]:
+        idxs = groups.get(gname, [])
+        out[gname] = [state.qubits[phys_idx] for phys_idx in idxs]
+    return out
+def raw_expr_dict_to_state(raw: dict) -> CircuitXZ:
+    """
+    Reverse of state_to_raw_expr_dict.
+    Input:  raw[g][i] = QubitXZ object for group g at index i.
+    Output: a CircuitXZ with qubits arranged in correct global positions.
+    """
+    # 1) find the maximum qubit index to determine circuit size
+    max_idx = -1
+    for gdict in raw.values():
+        for i in gdict.keys():
+            if i > max_idx:
+                max_idx = i
 
+    # 2) create empty CircuitXZ
+    new_state = new_clean_circuit_state(max_idx + 1)
 
+    # 3) fill in the qubits from raw dict
+    for gdict in raw.values():
+        for i, qubit in gdict.items():
+            new_state.qubits[i].x = qubit.x
+            new_state.qubits[i].z = qubit.z
 
+    return new_state
 
 # ---------------------------
 # Clifford update rules
@@ -670,6 +710,8 @@ def symbolic_propagate_with_resets(
 
     return (state, snapshots) if track_steps else state
 
+
+###this reads state as a . dict 
 def symbolic_execution_of_state(qasm_path: str, 
                                 input_state: CircuitXZ,
                                 round: int, 
@@ -677,7 +719,7 @@ def symbolic_execution_of_state(qasm_path: str,
                                 fault_gate:list = None,
                                 track_steps: bool = False,
                                 reset_groups=("ancX", "ancZ", "flagX", "flagZ"),
-                                fault_inject : bool = False,
+                                fault_inject : bool = True,
                                 fault_mode = "either",
                                 fault_kind = None 
                                 ):
@@ -686,28 +728,21 @@ def symbolic_execution_of_state(qasm_path: str,
 
     state = new_clean_circuit_state(qc.num_qubits)
     groups = detect_qubit_groups(qc)
+    group_idxs = {g: groups.get(g, []) for g in ("data","ancX","ancZ","flagX","flagZ")}
 
-    #pass the data qubits from input_state to state
-    if round != 1:
-        for i in groups['data']:
-            state.qubits[i].x = input_state.qubits[i].x
-            state.qubits[i].z = input_state.qubits[i].z
+    
+    
+    for i in groups["data"]: 
+        state.qubits[i].x = input_state.qubits[i].x
+        state.qubits[i].z = input_state.qubits[i].z
     ###get all the  gate indices
     if fault_gate is None:
         fault_gate_indices = []
     else:
         fault_gate_indices = get_gate_only_indices(qc)
 
-    n_circ = qc.num_qubits
-    n_state = len(input_state.qubits)
-    if n_circ != n_state:
-        raise ValueError(f"Qubit count mismatch: circuit={n_circ}, state={n_state}")
+    
 
-
-    state = deepcopy(input_state)
-    # Build groups from register names
-    groups = detect_qubit_groups(qc)   # expects keys: 'data','ancX','ancZ','flagX','flagZ'
-    group_idxs = {g: groups.get(g, []) for g in ("data","ancX","ancZ","flagX","flagZ")}
 
     #reset qubits in selected groups 
     selected_reset_idxs = []
@@ -715,6 +750,7 @@ def symbolic_execution_of_state(qasm_path: str,
         selected_reset_idxs.extend(group_idxs.get(g, []))
     selected_reset_idxs = sorted(set(selected_reset_idxs))
 
+    #print("groups detected:", group_idxs)
     # optional initial reset
     if selected_reset_idxs:
         #print("Performing initial reset on selected qubits.")
@@ -731,14 +767,14 @@ def symbolic_execution_of_state(qasm_path: str,
     for i, (instr, qargs, _) in enumerate(qc.data):
         name = instr.name
         qidxs = [_qiskit_qubit_index(qc, q) for q in qargs]
-        print(f"Processing gate {i}: {name} on qubits {qidxs}")
+       # print(f"Processing gate {i}: {name} on qubits {qidxs}")
         if name in ("h","s","sdg"):
             apply_qasm_gate_into_state(state, name, qidxs)
             if i in fault_gate_indices:
                 info = _inject_1q_fault_after(
                     state, qidxs[0],
                     fault_kind=None if fault_kind is None else fault_kind,
-                    prefix=f"f_site{i}"
+                    prefix=f"r_{round}_f_site{i}"
                 )
                 sites_info.append({
                     "gate_index": i, "gate_name": name,
@@ -764,7 +800,7 @@ def symbolic_execution_of_state(qasm_path: str,
                 info = _inject_2q_fault_after(
                     state, c, t,
                     fault_kind=None if fault_kind is None else fault_kind,
-                    prefix=f"faulty_gate{i}"
+                    prefix=f"r_{round}_faulty_gate{i}"
                 )
                 sites_info.append({
                     "gate_index": i, "gate_name": name,
@@ -781,10 +817,73 @@ def symbolic_execution_of_state(qasm_path: str,
                     "vars": {}, "act": BoolVal(False), "fault_mode": "none"
                 })
         
+        
         else:
             raise NotImplementedError(f"Unsupported gate: {name}")
-    return (state, snapshots) if track_steps else state
+        if track_steps:
+            snapshots.append((i, name, tuple(qidxs), deepcopy(state)))
+        
+    if fault_inject:
+        # groups already computed above
+        ancX_idxs = group_idxs.get("ancX", [])
+        ancZ_idxs = group_idxs.get("ancZ", [])
+        flagX_idxs = group_idxs.get("flagX", [])
+        flagZ_idxs = group_idxs.get("flagZ", [])
 
+        # synthetic “gate indices” after the last real gate
+        base_idx = len(qc.data)
+
+        # 1) flagZ (measured in Z) – inject Z faults
+        flagZ_vars = inject_on_flags(state, flagZ_idxs, axis="z", prefix="flagZFault_")
+        for q, v in zip(flagZ_idxs, flagZ_vars):
+            sites_info.append({
+                "gate_index": base_idx,
+                "gate_name": f"r_{round}_post_flagZ_inject",
+                "qubits": (q,),
+                "vars": {"v": v},   # <-- only the variable
+                "act": v,           # <-- act is exactly that var
+                "fault_mode": "1q",
+            })
+
+        # 2) flagX (measured in X) – inject X faults
+        flagX_vars = inject_on_flags(state, flagX_idxs, axis="x", prefix="flagXFault_")
+        for q, v in zip(flagX_idxs, flagX_vars):
+            sites_info.append({
+                "gate_index": base_idx + 1,
+                "gate_name": f"r_{round}_post_flagX_inject",
+                "qubits": (q,),
+                "vars": {"v": v},
+                "act": v,
+                "fault_mode": "1q",
+            })
+
+        # 3) ancZ (Z basis) – inject X faults
+        ancZ_vars = inject_on_ancillas(state, ancZ_idxs, axis="x", prefix="ancZFault_")
+        for q, v in zip(ancZ_idxs, ancZ_vars):
+            sites_info.append({
+                "gate_index": base_idx + 2,
+                "gate_name": f"r_{round}_post_ancZ_inject",
+                "qubits": (q,),
+                "vars": {"v": v},
+                "act": v,
+                "fault_mode": "1q",
+            })
+
+        # 4) ancX (X basis) – inject Z faults
+        ancX_vars = inject_on_ancillas(state, ancX_idxs, axis="z", prefix="ancXFault_")
+        for q, v in zip(ancX_idxs, ancX_vars):
+            sites_info.append({
+                "gate_index": base_idx + 3,
+                "gate_name": f"r_{round}_post_ancX_inject",
+                "qubits": (q,),
+                "vars": {"v": v},
+                "act": v,
+                "fault_mode": "1q",
+            })
+
+
+    return  (state,sites_info, snapshots) if track_steps else (state ,sites_info)
+     
 
 
 
@@ -1702,26 +1801,6 @@ def check_generalised_syndrome_uniqueness(
 
         return False
     
-def prove_protocol(protocole: Protocol , circuit_path_dic: Dict,stab_txt_path: str):
-
-    config = read_config()
-   
-    stab_txt_path = Path(config["stab_txt_path"])
-    
-    for steps, conds, instrs in all_paths_with_conditions_and_instructions(build_protocol_d_3_lai()):
-        print("=== New Path ===")
-         
-        for from_id, br, to_id in steps:
-            print(f"{from_id} --({br.condition.to_dict() if br.condition else 'None'})--> {to_id}")
-        
-        print("Conditions on this path:")
-        for c in conds:
-            print("  ", c.to_dict())
-        print("Instructions on this path:", instrs)
-        print()
-    
-        
-
 
 
 

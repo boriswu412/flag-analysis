@@ -78,7 +78,111 @@ class Protocol:
         with open(filepath, "w") as f:
             json.dump(self.to_dict(), f, indent=4)
         print(f"Protocol saved to {filepath}")
-        
+
+
+
+import json
+from typing import Dict, List, Optional
+
+# assumes your existing classes:
+# class Condition, class Branch, class Node
+
+def condition_from_dict(d: Optional[dict]) -> Optional[Condition]:
+    """Rebuild a Condition (possibly nested) from a JSON dict."""
+    if d is None:
+        return None
+
+    ctype = d["type"]
+
+    # Leaf comparisons
+    if ctype in ("equal", "not_equal", "greater", "less", "greater_equal", "less_equal"):
+        return Condition(
+            cond_type=ctype,
+            left=d.get("left"),
+            right=d.get("right")
+        )
+
+    # NOT: in your JSON, it's encoded as { "type": "not", "operands": [ subcond ] }
+    if ctype == "not":
+        ops = d.get("operands", [])
+        if len(ops) != 1:
+            raise ValueError("NOT condition expects exactly one operand")
+        sub = condition_from_dict(ops[0])
+        return Condition(cond_type="not", operand=sub)
+
+    # AND / OR: { "type": "and", "operands": [ ... ] }
+    if ctype in ("and", "or"):
+        ops = d.get("operands", [])
+        subconds = [condition_from_dict(x) for x in ops]
+        return Condition(cond_type=ctype, operands=subconds)
+
+    raise ValueError(f"Unknown condition type in JSON: {ctype}")
+
+# ---- parse Branch from dict ----
+
+def branch_from_dict(d: dict) -> Branch:
+    cond_dict = d.get("condition")
+    cond = condition_from_dict(cond_dict) if cond_dict is not None else None
+    return Branch(
+        target=d["target"],
+        condition=cond
+    )
+
+def node_from_dict(node_id: str, d: dict) -> Node:
+    instrs = d.get("instructions", [])
+    branches_dicts = d.get("branches", [])
+    branches = [branch_from_dict(bd) for bd in branches_dicts]
+    return Node(node_id=node_id, instructions=instrs, branches=branches)
+
+from typing import Tuple
+
+def read_path_steps(nodes: dict, path: list):
+    steps = []
+    for i, nid in enumerate(path):
+        if nid not in nodes:
+            raise KeyError(f"Node '{nid}' not found in protocol")
+
+        node = nodes[nid]
+        cond_to_next = None
+
+        if i + 1 < len(path):
+            next_id = path[i+1]
+            # find branch leading to next_id
+            for br in node.branches:
+                if br.target == next_id:
+                    cond_to_next = br.condition.to_dict() if br.condition else None
+                    break
+
+        steps.append((nid, node.instructions, cond_to_next))
+    return steps
+# ---- top-level loader ----
+
+def load_protocol(path: str):
+    """
+    Load a protocol JSON of the form:
+    {
+        "start_node": "<id>",
+        "nodes": {
+            "<id>": { "instructions": [...], "branches": [...] },
+            ...
+        }
+    }
+
+    Returns:
+      start_node: str
+      protocol: Dict[str, Node]
+    """
+    with open(path, "r") as f:
+        raw = json.load(f)
+
+    start_node = raw["start_node"]
+    nodes_dict = raw["nodes"]   # dict: node_id -> dict
+
+    protocol: Dict[str, Node] = {}
+    for node_id, node_body in nodes_dict.items():
+        protocol[node_id] = node_from_dict(node_id, node_body)
+
+    return start_node, protocol
 def all_paths_with_conditions_and_instructions(protocol):
     """
     Yields:
@@ -137,7 +241,7 @@ def build_protocol_d_3_lai() -> Protocol:
     # Root node with unconditional branch to flag_measure
     root_node = Node(
         node_id="root",
-        instructions=["flagged_syndrome_1"],
+        instructions=["flag_syndrome"],
         branches=[Branch(target="f_1_s_1_all_zero", condition= condition_1),
                   Branch(target="not_f_1_s_1_all_zero", condition = Condition("not", operand=condition_1))]
     )
@@ -190,7 +294,7 @@ def build_protocol_d_5_lai() -> Protocol:
     # Root node with unconditional branch to flag_measure
     root_node = Node(
         node_id="root",
-        instructions=["flagged_syndrome_1"],
+        instructions=["flag_syndrome"],
         branches=[Branch(target="all_zero", condition= condition_1),
                   Branch(target="not_all_zero", condition = Condition("not", operand=condition_1))]
     )
@@ -206,7 +310,7 @@ def build_protocol_d_5_lai() -> Protocol:
 
     condition_2 = Condition("equal", left="f_2", right=0)
     #node not all zero in first round
-    round_1_not_all_zero = Node(node_id="not_all_zero" ,instructions=["flagged_syndrome_2"],branches=[Branch(target="flag_2_all_zero", condition = condition_2),
+    round_1_not_all_zero = Node(node_id="not_all_zero" ,instructions=["flagged_syndrome"],branches=[Branch(target="flag_2_all_zero", condition = condition_2),
                   Branch(target = "flag_2_not_all_zero", condition = Condition("not", operand=condition_2))])
     
     protocol.add_node(round_1_not_all_zero)
@@ -222,7 +326,7 @@ def build_protocol_d_5_lai() -> Protocol:
     condition_s_3 = Condition("equal", left="s_3", right="s_2")
     condition_3 = Condition("and", operands=[condition_f_3, condition_s_3])
 
-    flag_2_all_zero = Node("flag_2_all_zero", instructions=["flagged_syndrome_3"], branches=[Branch(target= "r_3_all_zero", condition= condition_3),
+    flag_2_all_zero = Node("flag_2_all_zero", instructions=["flagged_syndrome"], branches=[Branch(target= "r_3_all_zero", condition= condition_3),
                   Branch(target="r_3_not_all_zero", condition = Condition("not", operand=condition_3))])
     
     protocol.add_node(flag_2_all_zero)
