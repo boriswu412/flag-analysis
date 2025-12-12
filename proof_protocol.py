@@ -37,20 +37,25 @@ from typing import List, Dict, Any
 
 
 from typing import List, Dict
+from typing import Dict, List
+
+from typing import Dict, List
+
+from typing import Dict, List
 
 def proof_protocol(protocol,
                   start_node: str,
                   init_state,
-                  config: Dict, 
+                  config: Dict,
                   t: int,
-                 stab_txt_path: str
-                  ):
+                  stab_txt_path: str):
 
     all_paths = []
 
     def dfs(round_idx: int,
             node_id: str,
-            cur_state,
+            cur_state,          # CircuitXZ
+            cur_groups,         # dict or None
             cur_path: List[Dict]):
 
         node = protocol[node_id]
@@ -60,16 +65,18 @@ def proof_protocol(protocol,
         # -------------------------------
         instr = node.instructions[0] if node.instructions else None
         state_after = cur_state
-        site_info = []   # <--- always create a local holder
+        site_info = []
+        groups = cur_groups  # default: carry from parent
 
-        if instr is not None  and node.branches:
+        if instr is not None and node.branches:
+            # This is a circuit instruction (e.g. flag_syndrome, raw_syndrome)
             if instr not in config:
                 raise KeyError(f"Instruction '{instr}' not found in config")
-            
+
             qasm_path = config[instr]
             qc = load_qasm(qasm_path)
             gate_list = get_gate_only_indices(qc)
-            groups = detect_qubit_groups(qc)
+            groups = detect_qubit_groups(qc)   # new groups for this circuit
 
             print("round:", round_idx, "node:", node_id, "instr:", instr)
             state_after, site_info = symbolic_execution_of_state(
@@ -81,29 +88,54 @@ def proof_protocol(protocol,
             )
 
         # -------------------------------
+        # Build dict-view of state_after
+        # -------------------------------
+        if groups is not None:
+            state_dict = state_to_raw_expr_dict(state_after, groups)
+        else:
+            # no anc/flag structure yet; keep only data as a list
+            state_dict = {
+                "data": list(state_after.qubits),
+                "ancX": [],
+                "ancZ": [],
+                "flagX": [],
+                "flagZ": [],
+            }
+
+        # -------------------------------
         # Leaf node (no branches)
         # -------------------------------
-        if not node.branches  :
-           
+        if not node.branches:
             step = {
                 "round": round_idx,
                 "node": node_id,
                 "next": None,
                 "instruction": instr,
                 "condition": None,
-                "state": { a :  cur_path[-1]["state"][a] for a in ["data"] if a in cur_path[-1]["state"] } ,
-                "site_info": site_info   # <-- store entire list
+                "state": state_dict,   # always dict
+                "site_info": site_info
             }
             full_path = cur_path + [step]
-
-            print("len full path:", len(full_path))
+            
             all_paths.append(full_path)
-            if instr == 'Break': 
+
+            # Leaf behavior
+            if instr == 'Break':
                 return
-            elif instr.startswith("LUT_") :
-                all_condition = [  step["condition"] for step in full_path if step["condition"] is not None ]
-                gen_syn =  parse_lut_instr(instr)
-                proof_path(full_path, t, gen_syn ,all_condition  ,stab_txt_path)
+            elif instr.startswith("LUT_"):
+                print("LUT", instr)
+                all_condition = [
+                    s["condition"] for s in full_path
+                    if s["condition"] is not None
+                ]
+                gen_syn = parse_lut_instr(instr)
+              
+                
+                    
+                proof_path(full_path, t, gen_syn, all_condition, stab_txt_path)
+                return
+            else:
+                # leaf with some other instruction, but nothing to prove
                 return
 
         # -------------------------------
@@ -112,30 +144,31 @@ def proof_protocol(protocol,
         for br in node.branches:
             cond_dict = br.condition.to_dict() if br.condition is not None else None
 
-            full_state = [s["state"] for s in cur_path if s["state"] is not None] + [state_after]
-            print("condition dict:", cond_dict)
+            # all states in full_state are dicts now
+            full_state = [s["state"] for s in cur_path] + [state_dict]
+            
             z3_condition = condition_to_z3(cond_dict, full_state, groups)
 
-            
-            
             step = {
                 "round": round_idx,
                 "node": node_id,
                 "next": br.target,
                 "instruction": instr,
                 "condition": z3_condition,
-                "state": state_to_raw_expr_dict(state_after, groups),
-                "site_info": site_info   # <-- store entire list
+                "state": state_dict,       # dict
+                "site_info": site_info
             }
 
             dfs(
                 round_idx + 1,
                 br.target,
-                state_after,
+                state_after,   # still CircuitXZ
+                groups,        # carry the same groups forward
                 cur_path + [step]
             )
 
-    dfs(0, start_node, init_state, [])
+    # initial call: no groups yet, clean data state
+    dfs(0, start_node, init_state, None, [])
     return all_paths
 from z3 import BoolVal, And, Or, Not
 
@@ -185,30 +218,79 @@ def read_state_variable(q_type: str, index: int, state: dict, groups : Dict):
     raise ValueError(f"Unknown variable group in condition: {q_type!r}")
 
 
-def read_operand(x, full_state: dict , groups:Dict):
-    """
-    Turn an operand from the condition dict into a z3 Bool expression.
+from z3 import BoolVal, BoolRef
 
-    Supports:
-      - 0, 1              → False / True
-      - 's_i', 'f_j'      → read from state via (group, index)
-    """
-    # numeric constants
-    if x == 0:
-        return False
-    if x == 1:
-        return True
+from z3 import BoolVal, BoolRef
 
+from z3 import BoolRef, BoolVal
+
+from z3 import BoolRef, BoolVal
+
+def read_operand(x, full_state, groups):
+    """
+    Interpret operands:
+      - int / bool
+      - 's_k' (syndrome bit from round k)
+      - 'f_k' (flag bit from round k)
+    """
+    # ints / bools
+    if isinstance(x, int) or isinstance(x, bool):
+        return x
+
+    # already Z3
+    if isinstance(x, BoolRef):
+        return x
+
+    # strings like 's_0', 'f_1', ...
     if isinstance(x, str):
-        q_type, idx = parse_var(x)
+        parts = x.split("_")
+        if len(parts) != 2:
+            raise ValueError(f"Bad variable name in condition: {x!r}")
+        kind, idx_str = parts
+        round_idx = int(idx_str)  # This is the round index, not array index
 
-        print("read_operand:", q_type, idx)
-        if q_type == 's' :
-            return ([ q.z for q in state_to_raw_expr_dict(full_state[idx],groups)["ancX"] if state_to_raw_expr_dict(full_state[idx],groups)["ancX"] != [] ] 
-                    + [q.x for q in state_to_raw_expr_dict(full_state[idx], groups)["ancZ"]  if state_to_raw_expr_dict(full_state[idx],groups)["ancZ"] != []])
-         
-        elif q_type == 'f' :   
-            return [ q.z for q in state_to_raw_expr_dict(full_state[idx], groups)["flagX"]] + [q.x for q in state_to_raw_expr_dict(full_state[idx], groups)["flagZ"]]
+        if not full_state:
+            raise ValueError("full_state is empty in read_operand")
+
+        # Check if we have enough rounds
+        if round_idx >= len(full_state):
+            raise IndexError(f"{kind}_{round_idx} refers to round {round_idx}, but we only have {len(full_state)} rounds")
+
+        state_dict = full_state[round_idx]   # Get state from the specific round
+        ancX_list = state_dict.get("ancX", [])
+        ancZ_list = state_dict.get("ancZ", [])
+        flagX_list = state_dict.get("flagX", [])
+        flagZ_list = state_dict.get("flagZ", [])
+
+        if kind == "s":
+            # ancX.z followed by ancZ.x - take all syndrome bits from this round
+            syn_bits = [q.z for q in ancX_list] + [q.x for q in ancZ_list]
+            if not syn_bits:
+                raise IndexError(f"s_{round_idx} refers to round {round_idx}, but no syndrome bits found in that round")
+            # For syndrome, we typically want the OR of all syndrome bits in that round
+            # But for now, let's return the first syndrome bit if there's only one
+            if len(syn_bits) == 1:
+                return syn_bits[0]
+            else:
+                # If multiple syndrome bits, return the OR of all of them
+                from z3 import Or
+                return Or(syn_bits)
+
+        elif kind == "f":
+            # flagX.z followed by flagZ.x - take all flag bits from this round  
+            flag_bits = [q.z for q in flagX_list] + [q.x for q in flagZ_list]
+            if not flag_bits:
+                raise IndexError(f"f_{round_idx} refers to round {round_idx}, but no flag bits found in that round")
+            # For flags, we typically want the OR of all flag bits in that round
+            if len(flag_bits) == 1:
+                return flag_bits[0]
+            else:
+                # If multiple flag bits, return the OR of all of them
+                from z3 import Or
+                return Or(flag_bits)
+
+        else:
+            raise ValueError(f"Unknown condition variable kind: {kind!r}")
 
     raise ValueError(f"Unsupported operand in condition: {x!r}")
 
@@ -225,6 +307,7 @@ def parse_lut_instr(name: str):
         raise ValueError(f"Bad LUT format: {name}")
 
     pairs = []
+    print("pairs:", pairs)
     for kind, idx_str in zip(tokens[0::2], tokens[1::2]):
         if kind not in ("s", "f"):
             raise ValueError(f"Unknown LUT kind '{kind}' in {name}")
@@ -264,15 +347,60 @@ def condition_to_z3(cond: dict | None, full_state: dict, groups:Dict) -> Bool:
         sub = cond["operands"][0]  # your JSON uses 'operands' even for NOT
         return Not(condition_to_z3(sub, full_state , groups))
 
-    if t in ("equal"):
-        L = read_operand(cond["left"],  full_state , groups)
-        R = read_operand(cond["right"], full_state , groups)
-        if  isinstance(R, bool):
-            return And(*[L[i] == BoolVal(False) for i in range(len(L))])
-        else :
-            return And(*[L[i] == R[i] for i in range(len(L))])  
+    if t == "equal":
+        L = read_operand(cond["left"],  full_state, groups)
+        R = read_operand(cond["right"], full_state, groups)
 
-    raise ValueError(f"Unknown condition type: {t}")
+        # Normalize Python bools to Z3
+        if isinstance(L, bool):
+            L = BoolVal(L)
+        if isinstance(R, bool):
+            R = BoolVal(R)
+
+        # --- list vs scalar-int (e.g. s_0 == 0) ---
+        if isinstance(L, list) and isinstance(R, int):
+            if R == 0:
+                # every bit in L must be false
+                return And(*[li == BoolVal(False) for li in L])
+            else:
+                # you can extend this if you later want "== 1" etc.
+                raise NotImplementedError(
+                    "Equality of list to int != 0 not implemented"
+                )
+
+        # symmetric case: scalar-int == list
+        if isinstance(R, list) and isinstance(L, int):
+            if L == 0:
+                return And(*[ri == BoolVal(False) for ri in R])
+            else:
+                raise NotImplementedError(
+                    "Equality of int != 0 to list not implemented"
+                )
+
+        # --- list vs bool (rare, but be safe) ---
+        if isinstance(L, list) and isinstance(R, BoolRef):
+            return And(*[li == R for li in L])
+        if isinstance(R, list) and isinstance(L, BoolRef):
+            return And(*[ri == L for ri in R])
+
+        # --- list vs list: pairwise equality ---
+        if isinstance(L, list) and isinstance(R, list):
+            if len(L) != len(R):
+                raise ValueError(
+                    f"List lengths differ in equality: {len(L)} vs {len(R)}"
+                )
+            return And(*[li == ri for li, ri in zip(L, R)])
+
+        # --- scalar vs scalar (Z3 or int/bool) ---
+        # By here, L and R should both be scalar Z3 expressions or ints.
+        # If ints 0/1 sneak in, you can map them to BoolVal as well:
+        if isinstance(L, int):
+            L = BoolVal(bool(L))
+        if isinstance(R, int):
+            R = BoolVal(bool(R))
+
+        # Now they are both scalar Z3 expressions → simple equality.
+        return L == R
 
 
 def proof_path(path : list[dict], t : int , gen_syn : list ,all_condtion : list, stab_txt_path: str) :
@@ -295,16 +423,15 @@ def proof_path(path : list[dict], t : int , gen_syn : list ,all_condtion : list,
     faults =  [info["act"] for step in path for info in step["site_info"]]
     gen_syn_z3 = []
     for type, idx in gen_syn:
+        #print("type, idx:", type, idx)
         if type == 's' :
-            print("idx:", idx)
-            print("path idx:", path[idx]["state"])
-            print("state:", path[idx]["state"]["ancX"])
+           
             syn =  [ anc.z for anc in path[idx]["state"]["ancX"]] + [ anc.x for anc in path[idx]["state"]["ancZ"]]
             gen_syn_z3 += syn 
         elif type == 'f' :
             flag =  [ flag.z for flag in path[idx]["state"]["flagX"]] + [ flag.x for flag in path[idx]["state"]["flagZ"] ]
             gen_syn_z3 += flag 
-
+    #    print("gen_syn_z3:", gen_syn_z3)
     at_most_t_faults = [AtMost( *faults , t)]
 
     return uniqness_proof(vars, at_most_t_faults,all_condtion,  gen_syn_z3, path[-1]["state"]["data"],stab_txt_path)

@@ -477,10 +477,10 @@ def build_low_depth_5_1_3_protocol() -> Protocol:
         protocol.add_node(node)
 
 
-        lut_name = "LUT_"
+        lut_name = "LUT"
         for j in range(0,i+1):
-            lut_name += f"s_{j}_f_{j}_"
-            lut_name += f"s_{i+1}"
+            lut_name += f"_s_{j}_f_{j}"
+            lut_name += f"_s_{i+1}"
 
         node =  Node(
                         node_id= f"ter_{i+1}",

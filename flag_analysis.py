@@ -918,8 +918,19 @@ def uniqness_proof(vars :list,at_most_t_faults: list,condition :list ,  gen_syn_
     E_x = [ data_qubit.x for data_qubit in data_qubits]
     E_z = [ data_qubit.z for data_qubit in data_qubits]
 
+
+    condition_not_in_stab, gsel_1 = error_not_in_stabilizer(E_x, E_z, stab_txt_path, prefix = "gsel_1")
+    
+    
+    
+
     ren_1 = make_renamer_from_symbols(vars, "_p1")
     ren_2 = make_renamer_from_symbols(vars, "_p2")
+
+    condition_not_in_stab_1 = primed_copy(condition_not_in_stab, ren_1)
+    condition_not_in_stab_2 = primed_copy(condition_not_in_stab, ren_2)
+
+   
     condition_1 = primed_copy(condition, ren_1)
     condition_2 = primed_copy(condition, ren_2)
     E_x_1 = primed_copy(E_x, ren_1)
@@ -933,9 +944,25 @@ def uniqness_proof(vars :list,at_most_t_faults: list,condition :list ,  gen_syn_
 
     stab_eq , gsel = exists_stab_equiv(E_x_1, E_z_1, E_x_2, E_z_2, stab_txt_path)
 
-    same_syn =  And( *[x == y for x, y in zip(gen_syn_z3_1, gen_syn_z3_2)] )
+    """
+    assign = {"r_0_faulty_gate0_z0_p2": True, "r_0_faulty_gate0_x0_p2": True, "r_0_faulty_gate0_z0_p1": True,
+    "r_0_faulty_gate0_x1_p1": True, "gsel_0": True}
+    print("eval not exist " , eval_with_values( Not(Exists(gsel, stab_eq)),  assign))
 
+    print("stab_eq eval ", eval_with_values( stab_eq, assign))
+
+    for (x,y) in zip(E_x_1, E_z_1):
+        print("E_x_1 eval ", eval_with_values( x, assign), "E_z_1 eval ", eval_with_values( y, assign))
+    
+    for (x,y) in zip(E_x_2, E_z_2):
+        print("E_x_2 eval ", eval_with_values( x, assign), "E_z_2 eval ", eval_with_values( y, assign))
+    
+    """
+
+    same_syn =  And( *[x == y for x, y in zip(gen_syn_z3_1, gen_syn_z3_2)] )
     s = Solver()
+    s.add(And(*condition_not_in_stab_1))
+    s.add(And(*condition_not_in_stab_2))
     s.add(same_syn, Not(Exists(gsel, stab_eq)))
     s.add(And( *condition_1))
     s.add(And( *condition_2))
@@ -1301,32 +1328,105 @@ def check_ancillas_match_symplectic_ordered(qasm_path: str,
         return {"ok": False, "mismatches": mismatches}
 
 
-##For checking the general syndromes are unique
-def exists_stab_equiv(E1_x, E1_z, E2_x, E2_z, stab_txt_path):
+def exists_stab_equiv(E1_x, E1_z, E2_x, E2_z, stab_txt_path, *, prefix="gsel"):
     """
     gens: [(Sx, Sz), ...] each Sx,Sz list[int] length n
     Returns: (constraint, selectors)
-      constraint encodes: ∃ gsel . E2 == E1 ⊕ (sum of selected generators)
+
+    The '*' makes 'prefix' a keyword-only argument.
     """
-
     gens = load_symplectic_txt(stab_txt_path)
+   
     m = len(gens); n = len(E1_x)
-    gsel = [Bool(f"gsel_{j}") for j in range(m)]
 
-    # per-qubit XOR sums of selected generator columns
-    addX = [BoolVal(False) for _ in range(n)]  # contributes to X part from Sz
-    addZ = [BoolVal(False) for _ in range(n)]  # contributes to Z part from Sx
+    # Prefix controls variable naming
+    gsel = [Bool(f"{prefix}_{j}") for j in range(m)]
+
+    addX = [BoolVal(False) for _ in range(n)]
+    addZ = [BoolVal(False) for _ in range(n)]
+
     for j, (Sx, Sz) in enumerate(gens):
         gj = gsel[j]
         for i in range(n):
-            if Sz[i]: addX[i] = Xor(addX[i], gj)
-            if Sx[i]: addZ[i] = Xor(addZ[i], gj)
+            if Sx[i]:
+                addX[i] = Xor(addX[i], gj)
+            if Sz[i]:
+                addZ[i] = Xor(addZ[i], gj)
 
     eqs = []
     for i in range(n):
         eqs.append(E2_x[i] == Xor(E1_x[i], addX[i]))
         eqs.append(E2_z[i] == Xor(E1_z[i], addZ[i]))
+    '''
+    print("addX:", addX)
+    print("addZ:", addZ)
+
+    print("Ex_1 ,E_x_2", simplify(E1_x[0]), simplify(E2_x[0]))
+    print("E_z_1 ,E_z_2",simplify(E1_z[0]), simplify(E2_z[0]))
+
+    print("eqs:", simplify(eqs[0]))
+
+    assign = {"r_0_faulty_gate0_z0_p2": True, "r_0_faulty_gate0_x0_p2": True, "r_0_faulty_gate0_z0_p1": True,
+    "r_0_faulty_gate0_x1_p1": True, "gsel_0": True}
+
+    for (x,y) in zip(E1_x, E1_z):
+        print("E_x_1 eval ", eval_with_values( x, assign), "E_z_1 eval ", eval_with_values( y, assign))
+    
+    for (x,y) in zip(E2_x, E2_z):
+        print("E_x_2 eval ", eval_with_values( x, assign), "E_z_2 eval ", eval_with_values( y, assign))
+ 
+    for eq in eqs:
+        print("eq eval ", eval_with_values( eq, assign))
+    print("eval ", eval_with_values( And(eqs), assign))
+    '''
     return And(eqs), gsel
+
+
+from z3 import BoolVal, Not
+
+from z3 import BoolVal, Not, Exists
+
+def error_not_in_stabilizer(E_x, E_z, stab_txt_path: str, *, prefix: str = "gsel"):
+    """
+    Build a constraint saying that the Pauli error (E_x, E_z) is NOT
+    equivalent to the identity up to stabilizers.
+
+    Args:
+      E_x, E_z : lists of z3 BoolRef, describing the X/Z components of an error
+      stab_txt_path : path to the stabilizer file (symplectic txt)
+      prefix : optional prefix for the selector variables (default: 'gsel')
+
+    Returns:
+      (constraints, gsel)
+
+      constraints : a *list* of one BoolRef, so that you can do
+                    And(*condition_not_in_stab_1) after priming.
+      gsel        : list of selector BoolRef used inside the Exists(..).
+
+      Semantics:
+        not_in_stab  ≡  ¬ ∃ gsel .  (E_x, E_z) == (sum of selected generators)
+    """
+    n = len(E_x)
+    # Identity error (all zero)
+    zero_x = [BoolVal(False) for _ in range(n)]
+    zero_z = [BoolVal(False) for _ in range(n)]
+
+    # E == I ⊕ (sum of generators)  (i.e. E is in stabilizer group)
+    stab_eq, gsel = exists_stab_equiv(
+        E1_x=E_x,
+        E1_z=E_z,
+        E2_x=zero_x,
+        E2_z=zero_z,
+        stab_txt_path=stab_txt_path,
+        prefix=prefix,
+    )
+
+    not_in_stab = Not(Exists(gsel, stab_eq))
+    # Return as a list so your existing code
+    #   condition_not_in_stab_1 = primed_copy(condition_not_in_stab, ren_1)
+    #   s.add(And(*condition_not_in_stab_1))
+    # still works.
+    return [not_in_stab], gsel
 
 
 
@@ -1435,16 +1535,23 @@ def make_renamer_from_symbols(symbols: list, suffix= "_p"):
 # For evaluation
 # ---------------------------
 
-from z3 import Bool, BoolVal, substitute, simplify, is_true, Z3_OP_UNINTERPRETED, is_bool
+from z3 import Bool, BoolVal, substitute, simplify, is_true, Z3_OP_UNINTERPRETED, is_bool, is_app, is_quantifier
 
 def collect_bool_symbols(expr):
     """Recursively collect all uninterpreted Bool symbols in expr."""
     syms = set()
     def _walk(e):
-        if is_bool(e) and e.decl().kind() == Z3_OP_UNINTERPRETED and e.num_args() == 0:
-            syms.add(e)
-        for ch in e.children():
-            _walk(ch)
+        # Check if this is an application (has .decl() method)
+        if is_app(e):
+            if is_bool(e) and e.decl().kind() == Z3_OP_UNINTERPRETED and e.num_args() == 0:
+                syms.add(e)
+            # Recursively walk children for applications
+            for ch in e.children():
+                _walk(ch)
+        elif is_quantifier(e):
+            # For quantifiers, walk the body
+            _walk(e.body())
+        # Note: we skip other expression types (like BoolSort, etc.)
     _walk(expr)
     return syms
 
@@ -1913,4 +2020,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-       

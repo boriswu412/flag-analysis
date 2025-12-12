@@ -127,7 +127,7 @@
         },
         "ter_2": {
             "instructions": [
-                "LUT_s_0_f_0_s_2s_1_f_1_s_2"
+                "LUT_s_0_f_0_s_2_s_1_f_1_s_2"
             ],
             "branches": []
         },
@@ -192,7 +192,7 @@
         },
         "ter_3": {
             "instructions": [
-                "LUT_s_0_f_0_s_3s_1_f_1_s_3s_2_f_2_s_3"
+                "LUT_s_0_f_0_s_3_s_1_f_1_s_3_s_2_f_2_s_3"
             ],
             "branches": []
         },
@@ -257,7 +257,7 @@
         },
         "ter_4": {
             "instructions": [
-                "LUT_s_0_f_0_s_4s_1_f_1_s_4s_2_f_2_s_4s_3_f_3_s_4"
+                "LUT_s_0_f_0_s_4_s_1_f_1_s_4_s_2_f_2_s_4_s_3_f_3_s_4"
             ],
             "branches": []
         },
