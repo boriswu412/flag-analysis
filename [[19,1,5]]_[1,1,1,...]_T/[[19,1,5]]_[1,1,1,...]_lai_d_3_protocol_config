@@ -1,0 +1,3 @@
+stab_txt_path = /Users/wuboris/Desktop/flag verification/[[19,1,5]]_[1,1,1,...]_T/[[19,1,5]].txt
+flag_syndrome = /Users/wuboris/Desktop/flag verification/[[19,1,5]]_[1,1,1,...]_T/[[19,1,5]]_[1,1,1,...]_flag_syndrome.qasm
+raw_syndrome = /Users/wuboris/Desktop/flag verification/[[19,1,5]]_[1,1,1,...]_T/raw_[[19,1,5]]_[1,1,1,...]_flag_syndrome.qasm

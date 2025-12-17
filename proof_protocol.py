@@ -118,11 +118,11 @@ def proof_protocol(protocol,
             full_path = cur_path + [step]
             
             all_paths.append(full_path)
-
+            print("len full_path:", len(all_paths))
             # Leaf behavior
             if instr == 'Break':
                 return
-            elif instr.startswith("LUT_"):
+            elif instr and instr.startswith("LUT_"):  # FIX: Added null check
                 print("LUT", instr)
                 all_condition = [
                     s["condition"] for s in full_path
@@ -131,8 +131,10 @@ def proof_protocol(protocol,
                 gen_syn = parse_lut_instr(instr)
               
                 
-                    
+
+                
                 proof_path(full_path, t, gen_syn, all_condition, stab_txt_path)
+                
                 return
             else:
                 # leaf with some other instruction, but nothing to prove
@@ -267,27 +269,20 @@ def read_operand(x, full_state, groups):
             syn_bits = [q.z for q in ancX_list] + [q.x for q in ancZ_list]
             if not syn_bits:
                 raise IndexError(f"s_{round_idx} refers to round {round_idx}, but no syndrome bits found in that round")
-            # For syndrome, we typically want the OR of all syndrome bits in that round
-            # But for now, let's return the first syndrome bit if there's only one
-            if len(syn_bits) == 1:
-                return syn_bits[0]
-            else:
-                # If multiple syndrome bits, return the OR of all of them
-                from z3 import Or
-                return Or(syn_bits)
+            
+            # Return the OR of all syndrome bits (this represents "any syndrome fired")
+            
+            return syn_bits
 
         elif kind == "f":
             # flagX.z followed by flagZ.x - take all flag bits from this round  
             flag_bits = [q.z for q in flagX_list] + [q.x for q in flagZ_list]
             if not flag_bits:
                 raise IndexError(f"f_{round_idx} refers to round {round_idx}, but no flag bits found in that round")
-            # For flags, we typically want the OR of all flag bits in that round
-            if len(flag_bits) == 1:
-                return flag_bits[0]
-            else:
-                # If multiple flag bits, return the OR of all of them
-                from z3 import Or
-                return Or(flag_bits)
+            
+            # Return the OR of all flag bits (this represents "any flag fired")
+            
+            return flag_bits
 
         else:
             raise ValueError(f"Unknown condition variable kind: {kind!r}")
@@ -352,36 +347,49 @@ def condition_to_z3(cond: dict | None, full_state: dict, groups:Dict) -> Bool:
         R = read_operand(cond["right"], full_state, groups)
 
         # Normalize Python bools to Z3
-        if isinstance(L, bool):
-            L = BoolVal(L)
-        if isinstance(R, bool):
-            R = BoolVal(R)
+        
 
-        # --- list vs scalar-int (e.g. s_0 == 0) ---
-        if isinstance(L, list) and isinstance(R, int):
-            if R == 0:
+        # --- list vs bool (e.g. s_0 == 0) ---
+        if isinstance(L, list) and isinstance(R, bool):
+           
+            if R:
+                # every bit in L must be true
+                return And(*[li == BoolVal(True) for li in L])
+            else:
                 # every bit in L must be false
                 return And(*[li == BoolVal(False) for li in L])
+               
+        if isinstance(R, list) and isinstance(L, bool):
+            if L:
+                # every bit in L must be true
+                return And(*[ri == BoolVal(True) for ri in L])
             else:
-                # you can extend this if you later want "== 1" etc.
-                raise NotImplementedError(
-                    "Equality of list to int != 0 not implemented"
-                )
+                # every bit in L must be false
+                return And(*[ri == BoolVal(False) for ri in L])
 
-        # symmetric case: scalar-int == list
+        if isinstance(L, list) and isinstance(R, int):
+            if R < 0:
+                raise ValueError(f"Negative integer in equality: {R}")
+            if R > len(L):
+                raise ValueError(f"Integer in equality exceeds list length: {R} > {len(L)}")
+            
+            else:
+                from z3 import PbEq
+                return PbEq([(li, 1) for li in L], R)
+            
         if isinstance(R, list) and isinstance(L, int):
-            if L == 0:
-                return And(*[ri == BoolVal(False) for ri in R])
+            if L < 0:
+                raise ValueError(f"Negative integer in equality: {L}")
+            if L > len(R):
+                raise ValueError(f"Integer in equality exceeds list length: {L} > {len(R)}")
+            
             else:
-                raise NotImplementedError(
-                    "Equality of int != 0 to list not implemented"
-                )
+                from z3 import PbEq
+                return PbEq([(ri, 1) for ri in R], L)
+      
+        
 
-        # --- list vs bool (rare, but be safe) ---
-        if isinstance(L, list) and isinstance(R, BoolRef):
-            return And(*[li == R for li in L])
-        if isinstance(R, list) and isinstance(L, BoolRef):
-            return And(*[ri == L for ri in R])
+        
 
         # --- list vs list: pairwise equality ---
         if isinstance(L, list) and isinstance(R, list):

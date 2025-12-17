@@ -644,8 +644,7 @@ def symbolic_propagate_with_resets(
     # --- consistency check ---
     n_circ = qc.num_qubits
     n_state = len(init_state.qubits)
-    if n_circ != n_state:
-        raise ValueError(f"Qubit count mismatch: circuit={n_circ}, state={n_state}")
+    
 
     # copy so we don't mutate caller's state
     state = deepcopy(init_state)
@@ -977,12 +976,40 @@ def uniqness_proof(vars :list,at_most_t_faults: list,condition :list ,  gen_syn_
         return True 
     if s.check() == sat:
         print("Failure: there exists two different errors that map to the same generalised syndrome")
-        print("The model that would cause different errors map to the same generalised syndrome:")
-        for d in s.model().decls(): 
-    
-            val = s.model()[d]
-            if str(val)  == "True": 
-                print(f"{d.name()} = {val}")
+
+        m = s.model()
+
+        p1_dict = {}
+        p2_dict = {}
+        other_dict = {}
+
+        for d in m.decls():
+            val = m[d]
+            if not is_true(val):
+                continue
+
+            name = d.name()
+
+            if name.endswith("_p1"):
+                base = name[:-3]   # strip "_p1"
+                p1_dict[base] = True
+
+            elif name.endswith("_p2"):
+                base = name[:-3]   # strip "_p2"
+                p2_dict[base] = True
+
+            else:
+                other_dict[name] = True
+
+        print("\n--- p1 dict ---")
+        print(p1_dict)
+
+        print("\n--- p2 dict ---")
+        print(p2_dict)
+
+        if other_dict:
+            print("\n--- other dict ---")
+            print(other_dict)
 
         return False
 

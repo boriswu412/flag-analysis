@@ -226,3 +226,59 @@ def remove_flag_gates(qasm_path: str, save_path: str = None):
             f.write(qasm2_dumps(new_qc))
 
     return new_qc
+
+
+from pathlib import Path
+
+def paulistring_to_qasm(pauli: str,
+                        anc_name: str = "ancX",
+                        anc_idx: int = 0,
+                        data_name: str = "q",
+                        barrier_after: bool = True,
+                        save_path: str | None = None) -> str:
+    """
+    Generate OPENQASM 2.0 that couples one ancilla to each data qubit according
+    to a Pauli string (I/X/Y/Z). Uses cx/cy/cz with the ancilla as the first operand.
+    Optionally saves the output to `save_path`.
+    """
+    pauli = pauli.strip().upper()
+    n = len(pauli)
+    if n != 5:
+        raise ValueError(f"expected length-5 pauli string, got length {n}: {pauli}")
+    if any(c not in "IXYZ" for c in pauli):
+        raise ValueError(f"pauli string must use only I/X/Y/Z, got: {pauli}")
+
+    gate_for = {"X": "cx", "Y": "cy", "Z": "cz"}  # I is skipped
+
+    lines = []
+    lines += [
+        "OPENQASM 2.0;",
+        'include "qelib1.inc";',
+        "",
+        f"qreg {data_name}[{n}];          // data qubits",
+        f"qreg {anc_name}[1];       // ancilla",
+        "",
+        "// =========================",
+        f"// Stabilizer : ( {pauli} )",
+        f"// ancilla = {anc_name}[{anc_idx}]",
+        "// =========================",
+    ]
+
+    for i, p in enumerate(pauli):
+        if p == "I":
+            continue
+        g = gate_for[p]
+        lines.append(f"{g}  {anc_name}[{anc_idx}], {data_name}[{i}];")
+
+    if barrier_after:
+        lines.append("")
+        lines.append("barrier;")
+
+    qasm = "\n".join(lines)
+
+    if save_path is not None:
+        path = Path(save_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(qasm)
+
+    return qasm

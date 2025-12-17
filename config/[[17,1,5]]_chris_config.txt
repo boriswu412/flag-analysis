@@ -1,0 +1,3 @@
+flag_syndrome = /Users/wuboris/Desktop/flag verification/chris_[[17,1,5]]/chris_[[17,1,5]]_[1,1,1,1,.....].qasm
+stab_txt_path = /Users/wuboris/Desktop/flag verification/chris_[[17,1,5]]/chris_[[17,1,5]].txt
+raw_syndrome = /Users/wuboris/Desktop/flag verification/chris_[[17,1,5]]/raw_chris_[[17,1,5]]_[1,1,1,1,.....].qasm

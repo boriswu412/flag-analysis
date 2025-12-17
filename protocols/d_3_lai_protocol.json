@@ -13,12 +13,12 @@
                             {
                                 "type": "equal",
                                 "left": "s_0",
-                                "right": 0
+                                "right": false
                             },
                             {
                                 "type": "equal",
                                 "left": "f_0",
-                                "right": 0
+                                "right": false
                             }
                         ]
                     },
@@ -34,12 +34,12 @@
                                     {
                                         "type": "equal",
                                         "left": "s_0",
-                                        "right": 0
+                                        "right": false
                                     },
                                     {
                                         "type": "equal",
                                         "left": "f_0",
-                                        "right": 0
+                                        "right": false
                                     }
                                 ]
                             }

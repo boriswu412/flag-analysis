@@ -1,0 +1,45 @@
+{
+    "start_node": "root",
+    "nodes": {
+        "root": {
+            "instructions": [
+                "flag_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_0",
+                        "right": true
+                    },
+                    "target": "ter_1"
+                },
+                {
+                    "condition": {
+                        "type": "not",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_0",
+                                "right": true
+                            }
+                        ]
+                    },
+                    "target": "ter_2"
+                }
+            ]
+        },
+        "ter_1": {
+            "instructions": [
+                "LUT_s_0_f_0"
+            ],
+            "branches": []
+        },
+        "ter_2": {
+            "instructions": [
+                "LUT_s_0"
+            ],
+            "branches": []
+        }
+    }
+}

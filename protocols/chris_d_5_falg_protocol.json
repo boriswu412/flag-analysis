@@ -3,38 +3,28 @@
     "nodes": {
         "root": {
             "instructions": [
-                "flagged_syndrome_1"
+                "flag_syndrome"
             ],
             "branches": [
                 {
                     "condition": {
-                        "type": "not",
-                        "operands": [
-                            {
-                                "type": "equal",
-                                "left": "f_1",
-                                "right": false
-                            }
-                        ]
+                        "type": "equal",
+                        "left": "f_0",
+                        "right": 2
                     },
-                    "target": "r_1_flagged"
+                    "target": "f_0_equal_2"
                 },
                 {
                     "condition": {
-                        "type": "not",
-                        "operands": [
-                            {
-                                "type": "equal",
-                                "left": "f_1",
-                                "right": false
-                            }
-                        ]
+                        "type": "equal",
+                        "left": "f_0",
+                        "right": 1
                     },
-                    "target": "r_1_not_flagged"
+                    "target": "f_0_equal_1"
                 }
             ]
         },
-        "r_1_flagged": {
+        "f_0_equal_2": {
             "instructions": [
                 "raw_syndrome"
             ],
@@ -46,26 +36,23 @@
             ]
         },
         "ter_1": {
-            "instructions": [],
+            "instructions": [
+                "LUT_s_0_f_0_s_1"
+            ],
             "branches": []
         },
-        "r_1_not_flagged": {
+        "f_0_equal_1": {
             "instructions": [
-                "flagged_syndrome_2"
+                "flag_syndrome"
             ],
             "branches": [
                 {
                     "condition": {
-                        "type": "not",
-                        "operands": [
-                            {
-                                "type": "equal",
-                                "left": "f_2",
-                                "right": false
-                            }
-                        ]
+                        "type": "equal",
+                        "left": "f_1",
+                        "right": 1
                     },
-                    "target": "r_2_flagged"
+                    "target": "f_1_equal_1 "
                 },
                 {
                     "condition": {
@@ -73,7 +60,25 @@
                         "operands": [
                             {
                                 "type": "equal",
-                                "left": "f_2",
+                                "left": "f_1",
+                                "right": false
+                            },
+                            {
+                                "type": "equal",
+                                "left": "s_0",
+                                "right": "s_1"
+                            }
+                        ]
+                    },
+                    "target": "f_1_all_zero_s_0_eq_s_1"
+                },
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_1",
                                 "right": false
                             },
                             {
@@ -81,36 +86,18 @@
                                 "operands": [
                                     {
                                         "type": "equal",
-                                        "left": "s_2",
+                                        "left": "s_0",
                                         "right": "s_1"
                                     }
                                 ]
                             }
                         ]
                     },
-                    "target": "r_2_not_flagged_and_s2_neq_s1"
-                },
-                {
-                    "condition": {
-                        "type": "and",
-                        "operands": [
-                            {
-                                "type": "equal",
-                                "left": "f_2",
-                                "right": false
-                            },
-                            {
-                                "type": "equal",
-                                "left": "s_2",
-                                "right": "s_1"
-                            }
-                        ]
-                    },
-                    "target": "r_2_not_flagged_and_s2_eq_s1"
+                    "target": "f_1_all_zero_s_0_neq_s_1"
                 }
             ]
         },
-        "r_2_flagged": {
+        "f_1_equal_1 ": {
             "instructions": [
                 "raw_syndrome"
             ],
@@ -122,10 +109,12 @@
             ]
         },
         "ter_2": {
-            "instructions": [],
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2"
+            ],
             "branches": []
         },
-        "r_2_not_flagged_and_s2_neq_s1": {
+        "f_1_all_zero_s_0_neq_s_1": {
             "instructions": [
                 "raw_syndrome"
             ],
@@ -137,13 +126,13 @@
             ]
         },
         "ter_3": {
-            "instructions": [],
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2"
+            ],
             "branches": []
         },
-        "r_2_not_flagged_and_s2_eq_s1": {
-            "instructions": [
-                "raw_syndrome"
-            ],
+        "f_1_all_zero_s_0_eq_s_1": {
+            "instructions": [],
             "branches": [
                 {
                     "condition": null,
@@ -152,7 +141,9 @@
             ]
         },
         "ter_4": {
-            "instructions": [],
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1"
+            ],
             "branches": []
         }
     }

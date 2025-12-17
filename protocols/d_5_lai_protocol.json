@@ -13,12 +13,12 @@
                             {
                                 "type": "equal",
                                 "left": "s_0",
-                                "right": 0
+                                "right": false
                             },
                             {
                                 "type": "equal",
                                 "left": "f_0",
-                                "right": 0
+                                "right": false
                             }
                         ]
                     },
@@ -34,12 +34,12 @@
                                     {
                                         "type": "equal",
                                         "left": "s_0",
-                                        "right": 0
+                                        "right": false
                                     },
                                     {
                                         "type": "equal",
                                         "left": "f_0",
-                                        "right": 0
+                                        "right": false
                                     }
                                 ]
                             }
@@ -64,7 +64,7 @@
                     "condition": {
                         "type": "equal",
                         "left": "f_1",
-                        "right": 0
+                        "right": false
                     },
                     "target": "f_1_all_zero"
                 },
@@ -75,7 +75,7 @@
                             {
                                 "type": "equal",
                                 "left": "f_1",
-                                "right": 0
+                                "right": false
                             }
                         ]
                     },
@@ -109,7 +109,7 @@
                                     {
                                         "type": "equal",
                                         "left": "f_1",
-                                        "right": 0
+                                        "right": false
                                     },
                                     {
                                         "type": "equal",
@@ -121,7 +121,7 @@
                             {
                                 "type": "equal",
                                 "left": "s_1",
-                                "right": 0
+                                "right": false
                             }
                         ]
                     },
@@ -140,7 +140,7 @@
                                             {
                                                 "type": "equal",
                                                 "left": "f_1",
-                                                "right": 0
+                                                "right": false
                                             },
                                             {
                                                 "type": "equal",
@@ -152,7 +152,7 @@
                                     {
                                         "type": "equal",
                                         "left": "s_1",
-                                        "right": 0
+                                        "right": false
                                     }
                                 ]
                             }
