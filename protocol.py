@@ -896,4 +896,247 @@ def build_5_1_3_low_depth_protocol():
     protocol.save_to_file("./protocols/5_1_3_low_depth_protocol.json")
 
 
+def build_full_chris_d_5_protocol():
+    import re
 
+    protocol = Protocol(start_node="root")
+
+    # -------------------------
+    # Readable unique id generators
+    # -------------------------
+    node_ctr = 0
+    ter_ctr = 0
+
+    def _slug(s: str) -> str:
+        # Keep letters/digits/_/-, replace everything else with '-'
+        s = re.sub(r"[^A-Za-z0-9_-]+", "-", s)
+        s = re.sub(r"-+", "-", s).strip("-")
+        return s if s else "node"
+
+    def nid(tag: str) -> str:
+        nonlocal node_ctr
+        node_ctr += 1
+        return f"{_slug(tag)}#{node_ctr:03d}"
+
+    def tid(tag: str = "ter") -> str:
+        nonlocal ter_ctr
+        ter_ctr += 1
+        return f"{_slug(tag)}#{ter_ctr:03d}"
+
+    # -------------------------
+    # Subtree builder (unique prefix)
+    # -------------------------
+    def sub_tree_1(round: int, parent_id: str, parent_tag: str):
+        """Attach subtree_1 branching logic to an EXISTING parent node."""
+        if parent_id not in protocol.nodes:
+            raise KeyError(f"parent node '{parent_id}' not found in protocol")
+
+        # conditions
+        condition_2_flag_r_i  = Condition("equal", left=f"f_{round}",   right=2)
+        condition_1_flag_r_i  = Condition("equal", left=f"f_{round}",   right=1)
+        condition_1_flag_r_i1 = Condition("equal", left=f"f_{round+1}", right=1)
+        condition_0_flag_r_i1 = Condition("equal", left=f"f_{round+1}", right=0)
+        condition_s_i_eq_s_i1 = Condition("equal", left=f"s_{round}", right=f"s_{round+1}")
+        cond_s_i_neq_s_i1     = Condition("not", operand=condition_s_i_eq_s_i1)
+
+        # allocate child ids ONCE
+        f2_id = nid(f"{parent_tag}-r{round}-f2")
+        f1_id = nid(f"{parent_tag}-r{round}-f1")
+
+        # attach branches to parent
+        protocol.nodes[parent_id].branches += [
+            Branch(target=f2_id, condition=condition_2_flag_r_i),
+            Branch(target=f1_id, condition=condition_1_flag_r_i),
+        ]
+
+        # --- f == 2 leaf -> LUT(s0,f0,...,s_round,f_round)
+        t = tid("lut")
+        protocol.add_node(Node(node_id=f2_id, instructions=[], branches=[Branch(target=t)]))
+
+        instr = "LUT" + "".join(f"_s_{i}_f_{i}" for i in range(round + 1))
+        protocol.add_node(Node(node_id=t, instructions=[instr], branches=[]))
+
+        # --- f == 1 -> run flag_syndrome then branch on round+1 info
+        f1_next_f1 = nid(f"{parent_tag}-r{round+1}-f1")
+        f1_seq     = nid(f"{parent_tag}-r{round+1}-s-eq")
+        f1_sneq    = nid(f"{parent_tag}-r{round+1}-s-neq")
+
+        protocol.add_node(Node(
+            node_id=f1_id,
+            instructions=["flag_syndrome"],
+            branches=[
+                Branch(target=f1_next_f1, condition=condition_1_flag_r_i1),
+                Branch(target=f1_seq,     condition=Condition("and", operands=[condition_0_flag_r_i1, condition_s_i_eq_s_i1])),
+                Branch(target=f1_sneq,    condition=Condition("and", operands=[condition_0_flag_r_i1, cond_s_i_neq_s_i1])),
+            ]
+        ))
+
+        # --- round+1 f==1 leaf -> LUT up to round+1
+        t = tid("lut")
+        protocol.add_node(Node(node_id=f1_next_f1, instructions=[], branches=[Branch(target=t)]))
+        instr2 = "LUT" + "".join(f"_s_{i}_f_{i}" for i in range(round + 2))
+        protocol.add_node(Node(node_id=t, instructions=[instr2], branches=[]))
+
+        # --- s_eq leaf -> LUT up to round+1
+        t = tid("lut")
+        protocol.add_node(Node(node_id=f1_seq, instructions=[], branches=[Branch(target=t)]))
+        protocol.add_node(Node(node_id=t, instructions=[instr2], branches=[]))
+
+        # --- s_neq -> raw_syndrome -> LUT(..., s_{round+2})
+        t = tid("lut")
+        protocol.add_node(Node(node_id=f1_sneq, instructions=["raw_syndrome"], branches=[Branch(target=t)]))
+        instr3 = instr2 + f"_s_{round+2}"
+        protocol.add_node(Node(node_id=t, instructions=[instr3], branches=[]))
+
+    def sub_tree_2(round: int, parent_id: str, parent_tag: str):
+        """Attach subtree_2 branching logic to an EXISTING parent node."""
+        if parent_id not in protocol.nodes:
+            raise KeyError(f"parent node '{parent_id}' not found in protocol")
+
+        # conditions
+        condition_1_flag_r_i   = Condition("equal", left=f"f_{round}",   right=1)
+        condition_0_flag_r_i   = Condition("equal", left=f"f_{round}",   right=0)
+        condition_1_flag_r_i1  = Condition("equal", left=f"f_{round+1}", right=1)
+        condition_0_flag_r_i1  = Condition("equal", left=f"f_{round+1}", right=0)
+        condition_s_i_eq_s_i1  = Condition("equal", left=f"s_{round}", right=f"s_{round+1}")
+        cond_s_i_neq_s_i1      = Condition("not", operand=condition_s_i_eq_s_i1)
+
+        # allocate child ids ONCE
+        f1_id = nid(f"{parent_tag}-r{round}-f1")
+        f0_id = nid(f"{parent_tag}-r{round}-f0")
+
+        # attach to parent
+        protocol.nodes[parent_id].branches += [
+            Branch(target=f1_id, condition=condition_1_flag_r_i),
+            Branch(target=f0_id, condition=condition_0_flag_r_i),
+        ]
+
+        # --- f == 1 -> raw_syndrome -> LUT
+        t = tid("lut")
+        protocol.add_node(Node(node_id=f1_id, instructions=["raw_syndrome"], branches=[Branch(target=t)]))
+        lut_name = "LUT" + "".join(f"_s_{i}_f_{i}" for i in range(round + 1))
+        protocol.add_node(Node(node_id=t, instructions=[lut_name], branches=[]))
+
+        # --- f == 0 -> flag_syndrome -> branch
+        r1_f1   = nid(f"{parent_tag}-r{round+1}-f1")
+        r1_seq  = nid(f"{parent_tag}-r{round+1}-s-eq")
+        r1_sneq = nid(f"{parent_tag}-r{round+1}-s-neq")
+
+        protocol.add_node(Node(
+            node_id=f0_id,
+            instructions=["flag_syndrome"],
+            branches=[
+                Branch(target=r1_f1,   condition=condition_1_flag_r_i1),
+                Branch(target=r1_seq,  condition=Condition("and", operands=[condition_0_flag_r_i1, condition_s_i_eq_s_i1])),
+                Branch(target=r1_sneq, condition=Condition("and", operands=[condition_0_flag_r_i1, cond_s_i_neq_s_i1])),
+            ]
+        ))
+
+        # --- round+1 f==1 leaf -> LUT up to round+1
+        t = tid("lut")
+        protocol.add_node(Node(node_id=r1_f1, instructions=["raw_syndrome"], branches=[Branch(target=t)]))
+        instr2 = "LUT" + "".join(f"_s_{i}_f_{i}" for i in range(round + 2))
+        instr2 += f"_s_{round+2}"
+        protocol.add_node(Node(node_id=t, instructions=[instr2], branches=[]))
+
+        # --- s_eq leaf -> LUT up to round+1
+        t = tid("lut")
+        protocol.add_node(Node(node_id=r1_seq, instructions=[], branches=[Branch(target=t)]))
+        protocol.add_node(Node(node_id=t, instructions=[instr2], branches=[]))
+
+        # --- s_neq -> raw_syndrome -> LUT(..., s_{round+2})
+        t = tid("lut")
+        protocol.add_node(Node(node_id=r1_sneq, instructions=["raw_syndrome"], branches=[Branch(target=t)]))
+        instr3 = instr2 + f"_s_{round+2}"
+        protocol.add_node(Node(node_id=t, instructions=[instr3], branches=[]))
+
+    # -------------------------
+    # Build root
+    # -------------------------
+    protocol.add_node(Node(node_id="root", instructions=["flag_syndrome"], branches=[]))
+
+    # root branch: if NOT (f0==0) -> subtree_1 at round 0
+    cond_f0_eq_0 = Condition("equal", left="f_0", right=0)
+    r0_f0_id = nid("r0-f0")
+    protocol.nodes["root"].branches.append(
+        Branch(target=r0_f0_id, condition =cond_f0_eq_0))
+    
+    # attach subtree_1 for round 0 hanging off root
+    sub_tree_1(0, "root", "fromRoot")
+
+    # -------------------------
+    # Build the r0_f0 node
+    # -------------------------
+    condition_s0_eq_s1  = Condition("equal", left="s_0", right="s_1")
+    condition_s0_neq_s1 = Condition("not", operand=condition_s0_eq_s1)
+    condition_f1_eq_0   = Condition("equal", left="f_1", right=0)
+
+    s_eq_id  = nid("r0f0-f1eq0-s0eqs1")
+    s_neq_id = nid("r0f0-f1eq0-s0neqs1")
+
+    # create these nodes ONCE so later protocol.nodes[...] works
+    protocol.add_node(Node(node_id=s_eq_id,  instructions=["flag_syndrome"], branches=[]))
+    protocol.add_node(Node(node_id=s_neq_id, instructions=["flag_syndrome"], branches=[]))
+
+    protocol.add_node(Node(
+        node_id=r0_f0_id,
+        instructions=["flag_syndrome"],
+        branches=[
+            Branch(target=s_eq_id,  condition=Condition("and", operands=[condition_f1_eq_0, condition_s0_eq_s1])),
+            Branch(target=s_neq_id, condition=Condition("and", operands=[condition_f1_eq_0, condition_s0_neq_s1])),
+        ]
+    ))
+
+    # attach subtrees below
+    sub_tree_1(1, r0_f0_id, "fromR0F0")
+    sub_tree_2(2, s_neq_id, "fromR0F0Sneq")
+    sub_tree_1(2, s_eq_id,  "fromR0F0Seq")
+    #sub_tree_1(2, s_eq_id,  "fromR0F0Seq")
+
+    # -------------------------
+    # Extend the s_eq_id node (UPDATE it; do not overwrite by add_node)
+    # -------------------------
+    condition_s1_eq_s2  = Condition("equal", left="s_1", right="s_2")
+    condition_s1_neq_s2 = Condition("not", operand=condition_s1_eq_s2)
+    condition_f2_eq_0   = Condition("equal", left="f_2", right=0)
+
+
+    # --- build the two reachable child nodes and attach them to s_eq_id
+    r2_f0_id   = nid("fromR0F0Seq_r2_f0")
+    r2_sneq_id = nid("fromR0F0Seq_r2_sneq")
+
+    # Do NOT overwrite existing branches on s_eq_id; extend them.
+    protocol.nodes[s_eq_id].branches += [
+        Branch(
+            target=r2_f0_id,
+            condition=Condition("and", operands=[condition_f2_eq_0, condition_s1_eq_s2])
+        ),
+        Branch(
+            target=r2_sneq_id,
+            condition=Condition("and", operands=[condition_f2_eq_0, condition_s1_neq_s2])
+        ),
+    ]
+
+    # Ensure both target nodes exist exactly once
+    if r2_f0_id not in protocol.nodes:
+        protocol.add_node(Node(node_id=r2_f0_id, instructions=[], branches=[]))
+    if r2_sneq_id not in protocol.nodes:
+        protocol.add_node(Node(node_id=r2_sneq_id, instructions=[], branches=[]))
+
+    # --- attach subtree_2 to the REAL reachable node id
+    sub_tree_2(3, r2_sneq_id, "fromR0F0SeqR2Sneq")
+
+    # --- attach LUT after r2_f0_id
+    lut_term = tid("lut")
+    # Do not overwrite any existing branches; append the terminal edge.
+    protocol.nodes[r2_f0_id].branches += [Branch(target=lut_term, condition=None)]
+
+    lut_name = "LUT" + "".join(f"_s_{i}_f_{i}" for i in range(0, 3))
+    protocol.add_node(Node(node_id=lut_term, instructions=[lut_name], branches=[]))
+
+        
+
+    
+
+    protocol.save_to_file("./protocols/full_chris_d_5_low_depth_protocol.json")
+    return protocol

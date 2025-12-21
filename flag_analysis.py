@@ -1214,35 +1214,30 @@ def evaluate_state_from_raw(state_raw: dict, assignment: dict, default_false: bo
 
 def qubits_to_pauli_string(state_eval):
     """
-    Convert an evaluated state into Pauli strings.
-
-    state_eval: output of eval_path_final_state
-      {
-        "data": [{"x":bool,"z":bool}, ...],
-        "ancX": [...],
-        ...
-      }
+    state_eval:
+      {"data":[{"x":..,"z":..}, ...], "flagX":[[{"x":..,"z":..},...], ...], ...}
 
     returns:
-      {
-        "data": "IXYZ...",
-        "ancX": "...",
-        ...
-      }
+      {"data":"IXYZ...", "flagX":["IX..", "ZI.."], ...}  # preserves grouping
     """
-
     def pauli(x, z):
-        if not x and not z:
-            return "I"
-        if x and not z:
-            return "X"
-        if not x and z:
-            return "Z"
-        return "Y"
+        if x and z: return "Y"
+        if x:       return "X"
+        if z:       return "Z"
+        return "I"
 
     out = {}
     for group, qubits in state_eval.items():
-        out[group] = "".join(pauli(q["x"], q["z"]) for q in qubits)
+        if not qubits:
+            out[group] = "" if group == "data" else []
+            continue
+
+        # list-of-lists -> list of strings
+        if isinstance(qubits[0], list):
+            out[group] = ["".join(pauli(q["x"], q["z"]) for q in sub) for sub in qubits]
+        # flat list -> single string
+        else:
+            out[group] = "".join(pauli(q["x"], q["z"]) for q in qubits)
 
     return out
 
@@ -1651,17 +1646,50 @@ def eval_with_values(exprs, assignment, default_false=True):
 
 def eval_state_dict_with_values(state_dict, assignment, default_false=True):
     """
-    state_dict: {"data":[QubitXZ,...], "ancX":[...], ...}
-    returns:    {"data":[{"x":bool,"z":bool}, ...], ...}
+    state_dict:
+      {
+        "data":  [QubitXZ, ...] or [[QubitXZ, ...], ...],
+        "ancX":  ...
+      }
+
+    returns:
+      {
+        "data":  [{"x":bool,"z":bool}, ...] or [[{"x":..,"z":..}, ...], ...],
+        ...
+      }
     """
+
     out = {}
+
     for group, qubits in state_dict.items():
-        out[group] = []
-        for q in qubits:
-            out[group].append({
-                "x": eval_with_values(q.x, assignment, default_false=default_false),
-                "z": eval_with_values(q.z, assignment, default_false=default_false),
-            })
+
+        # case 1: empty
+        if not qubits:
+            out[group] = []
+            continue
+
+        # case 2: list of lists
+        if isinstance(qubits[0], list):
+            out[group] = []
+            for sub in qubits:
+                out[group].append([
+                    {
+                        "x": eval_with_values(q.x, assignment, default_false),
+                        "z": eval_with_values(q.z, assignment, default_false),
+                    }
+                    for q in sub
+                ])
+
+        # case 3: flat list
+        else:
+            out[group] = [
+                {
+                    "x": eval_with_values(q.x, assignment, default_false),
+                    "z": eval_with_values(q.z, assignment, default_false),
+                }
+                for q in qubits
+            ]
+
     return out
 
 def eval_path_all_states(path, assignment, default_false=True):

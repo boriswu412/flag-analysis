@@ -1,0 +1,821 @@
+{
+    "start_node": "root",
+    "nodes": {
+        "root": {
+            "instructions": [
+                "flag_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_0",
+                        "right": 0
+                    },
+                    "target": "r0-f0#001"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_0",
+                        "right": 2
+                    },
+                    "target": "fromRoot-r0-f2#002"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_0",
+                        "right": 1
+                    },
+                    "target": "fromRoot-r0-f1#003"
+                }
+            ]
+        },
+        "fromRoot-r0-f2#002": {
+            "instructions": [],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#001"
+                }
+            ]
+        },
+        "lut#001": {
+            "instructions": [
+                "LUT_s_0_f_0"
+            ],
+            "branches": []
+        },
+        "fromRoot-r0-f1#003": {
+            "instructions": [
+                "flag_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_1",
+                        "right": 1
+                    },
+                    "target": "fromRoot-r1-f1#004"
+                },
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_1",
+                                "right": 0
+                            },
+                            {
+                                "type": "equal",
+                                "left": "s_0",
+                                "right": "s_1"
+                            }
+                        ]
+                    },
+                    "target": "fromRoot-r1-s-eq#005"
+                },
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_1",
+                                "right": 0
+                            },
+                            {
+                                "type": "not",
+                                "operands": [
+                                    {
+                                        "type": "equal",
+                                        "left": "s_0",
+                                        "right": "s_1"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "target": "fromRoot-r1-s-neq#006"
+                }
+            ]
+        },
+        "fromRoot-r1-f1#004": {
+            "instructions": [],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#002"
+                }
+            ]
+        },
+        "lut#002": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1"
+            ],
+            "branches": []
+        },
+        "fromRoot-r1-s-eq#005": {
+            "instructions": [],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#003"
+                }
+            ]
+        },
+        "lut#003": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1"
+            ],
+            "branches": []
+        },
+        "fromRoot-r1-s-neq#006": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#004"
+                }
+            ]
+        },
+        "lut#004": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2"
+            ],
+            "branches": []
+        },
+        "r0f0-f1eq0-s0eqs1#007": {
+            "instructions": [
+                "flag_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_2",
+                        "right": 2
+                    },
+                    "target": "fromR0F0Seq-r2-f2#019"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_2",
+                        "right": 1
+                    },
+                    "target": "fromR0F0Seq-r2-f1#020"
+                },
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_2",
+                                "right": 0
+                            },
+                            {
+                                "type": "equal",
+                                "left": "s_1",
+                                "right": "s_2"
+                            }
+                        ]
+                    },
+                    "target": "fromR0F0Seq_r2_f0#024"
+                },
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_2",
+                                "right": 0
+                            },
+                            {
+                                "type": "not",
+                                "operands": [
+                                    {
+                                        "type": "equal",
+                                        "left": "s_1",
+                                        "right": "s_2"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "target": "fromR0F0Seq_r2_sneq#025"
+                }
+            ]
+        },
+        "r0f0-f1eq0-s0neqs1#008": {
+            "instructions": [
+                "flag_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_2",
+                        "right": 1
+                    },
+                    "target": "fromR0F0Sneq-r2-f1#014"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_2",
+                        "right": 0
+                    },
+                    "target": "fromR0F0Sneq-r2-f0#015"
+                }
+            ]
+        },
+        "r0-f0#001": {
+            "instructions": [
+                "flag_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_1",
+                                "right": 0
+                            },
+                            {
+                                "type": "equal",
+                                "left": "s_0",
+                                "right": "s_1"
+                            }
+                        ]
+                    },
+                    "target": "r0f0-f1eq0-s0eqs1#007"
+                },
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_1",
+                                "right": 0
+                            },
+                            {
+                                "type": "not",
+                                "operands": [
+                                    {
+                                        "type": "equal",
+                                        "left": "s_0",
+                                        "right": "s_1"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "target": "r0f0-f1eq0-s0neqs1#008"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_1",
+                        "right": 2
+                    },
+                    "target": "fromR0F0-r1-f2#009"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_1",
+                        "right": 1
+                    },
+                    "target": "fromR0F0-r1-f1#010"
+                }
+            ]
+        },
+        "fromR0F0-r1-f2#009": {
+            "instructions": [],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#005"
+                }
+            ]
+        },
+        "lut#005": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1"
+            ],
+            "branches": []
+        },
+        "fromR0F0-r1-f1#010": {
+            "instructions": [
+                "flag_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_2",
+                        "right": 1
+                    },
+                    "target": "fromR0F0-r2-f1#011"
+                },
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_2",
+                                "right": 0
+                            },
+                            {
+                                "type": "equal",
+                                "left": "s_1",
+                                "right": "s_2"
+                            }
+                        ]
+                    },
+                    "target": "fromR0F0-r2-s-eq#012"
+                },
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_2",
+                                "right": 0
+                            },
+                            {
+                                "type": "not",
+                                "operands": [
+                                    {
+                                        "type": "equal",
+                                        "left": "s_1",
+                                        "right": "s_2"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "target": "fromR0F0-r2-s-neq#013"
+                }
+            ]
+        },
+        "fromR0F0-r2-f1#011": {
+            "instructions": [],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#006"
+                }
+            ]
+        },
+        "lut#006": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2"
+            ],
+            "branches": []
+        },
+        "fromR0F0-r2-s-eq#012": {
+            "instructions": [],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#007"
+                }
+            ]
+        },
+        "lut#007": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2"
+            ],
+            "branches": []
+        },
+        "fromR0F0-r2-s-neq#013": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#008"
+                }
+            ]
+        },
+        "lut#008": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3"
+            ],
+            "branches": []
+        },
+        "fromR0F0Sneq-r2-f1#014": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#009"
+                }
+            ]
+        },
+        "lut#009": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2"
+            ],
+            "branches": []
+        },
+        "fromR0F0Sneq-r2-f0#015": {
+            "instructions": [
+                "flag_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_3",
+                        "right": 1
+                    },
+                    "target": "fromR0F0Sneq-r3-f1#016"
+                },
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_3",
+                                "right": 0
+                            },
+                            {
+                                "type": "equal",
+                                "left": "s_2",
+                                "right": "s_3"
+                            }
+                        ]
+                    },
+                    "target": "fromR0F0Sneq-r3-s-eq#017"
+                },
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_3",
+                                "right": 0
+                            },
+                            {
+                                "type": "not",
+                                "operands": [
+                                    {
+                                        "type": "equal",
+                                        "left": "s_2",
+                                        "right": "s_3"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "target": "fromR0F0Sneq-r3-s-neq#018"
+                }
+            ]
+        },
+        "fromR0F0Sneq-r3-f1#016": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#010"
+                }
+            ]
+        },
+        "lut#010": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3_s_4"
+            ],
+            "branches": []
+        },
+        "fromR0F0Sneq-r3-s-eq#017": {
+            "instructions": [],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#011"
+                }
+            ]
+        },
+        "lut#011": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3_s_4"
+            ],
+            "branches": []
+        },
+        "fromR0F0Sneq-r3-s-neq#018": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#012"
+                }
+            ]
+        },
+        "lut#012": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3_s_4_s_4"
+            ],
+            "branches": []
+        },
+        "fromR0F0Seq-r2-f2#019": {
+            "instructions": [],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#013"
+                }
+            ]
+        },
+        "lut#013": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2"
+            ],
+            "branches": []
+        },
+        "fromR0F0Seq-r2-f1#020": {
+            "instructions": [
+                "flag_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_3",
+                        "right": 1
+                    },
+                    "target": "fromR0F0Seq-r3-f1#021"
+                },
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_3",
+                                "right": 0
+                            },
+                            {
+                                "type": "equal",
+                                "left": "s_2",
+                                "right": "s_3"
+                            }
+                        ]
+                    },
+                    "target": "fromR0F0Seq-r3-s-eq#022"
+                },
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_3",
+                                "right": 0
+                            },
+                            {
+                                "type": "not",
+                                "operands": [
+                                    {
+                                        "type": "equal",
+                                        "left": "s_2",
+                                        "right": "s_3"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "target": "fromR0F0Seq-r3-s-neq#023"
+                }
+            ]
+        },
+        "fromR0F0Seq-r3-f1#021": {
+            "instructions": [],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#014"
+                }
+            ]
+        },
+        "lut#014": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3"
+            ],
+            "branches": []
+        },
+        "fromR0F0Seq-r3-s-eq#022": {
+            "instructions": [],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#015"
+                }
+            ]
+        },
+        "lut#015": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3"
+            ],
+            "branches": []
+        },
+        "fromR0F0Seq-r3-s-neq#023": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#016"
+                }
+            ]
+        },
+        "lut#016": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3_s_4"
+            ],
+            "branches": []
+        },
+        "fromR0F0Seq_r2_f0#024": {
+            "instructions": [],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#021"
+                }
+            ]
+        },
+        "fromR0F0Seq_r2_sneq#025": {
+            "instructions": [],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_3",
+                        "right": 1
+                    },
+                    "target": "fromR0F0SeqR2Sneq-r3-f1#026"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_3",
+                        "right": 0
+                    },
+                    "target": "fromR0F0SeqR2Sneq-r3-f0#027"
+                }
+            ]
+        },
+        "fromR0F0SeqR2Sneq-r3-f1#026": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#017"
+                }
+            ]
+        },
+        "lut#017": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3"
+            ],
+            "branches": []
+        },
+        "fromR0F0SeqR2Sneq-r3-f0#027": {
+            "instructions": [
+                "flag_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_4",
+                        "right": 1
+                    },
+                    "target": "fromR0F0SeqR2Sneq-r4-f1#028"
+                },
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_4",
+                                "right": 0
+                            },
+                            {
+                                "type": "equal",
+                                "left": "s_3",
+                                "right": "s_4"
+                            }
+                        ]
+                    },
+                    "target": "fromR0F0SeqR2Sneq-r4-s-eq#029"
+                },
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_4",
+                                "right": 0
+                            },
+                            {
+                                "type": "not",
+                                "operands": [
+                                    {
+                                        "type": "equal",
+                                        "left": "s_3",
+                                        "right": "s_4"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "target": "fromR0F0SeqR2Sneq-r4-s-neq#030"
+                }
+            ]
+        },
+        "fromR0F0SeqR2Sneq-r4-f1#028": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#018"
+                }
+            ]
+        },
+        "lut#018": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3_s_4_f_4_s_5"
+            ],
+            "branches": []
+        },
+        "fromR0F0SeqR2Sneq-r4-s-eq#029": {
+            "instructions": [],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#019"
+                }
+            ]
+        },
+        "lut#019": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3_s_4_f_4_s_5"
+            ],
+            "branches": []
+        },
+        "fromR0F0SeqR2Sneq-r4-s-neq#030": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#020"
+                }
+            ]
+        },
+        "lut#020": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3_s_4_f_4_s_5_s_5"
+            ],
+            "branches": []
+        },
+        "lut#021": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2"
+            ],
+            "branches": []
+        }
+    }
+}

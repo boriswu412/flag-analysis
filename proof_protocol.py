@@ -92,6 +92,9 @@ def proof_protocol(protocol,
         # -------------------------------
         if groups is not None:
             state_dict = state_to_raw_expr_dict(state_after, groups)
+       
+
+        
         else:
             # no anc/flag structure yet; keep only data as a list
             state_dict = {
@@ -101,6 +104,16 @@ def proof_protocol(protocol,
                 "flagX": [],
                 "flagZ": [],
             }
+
+        if f'{instr}' + '_flag_group' in config:
+            import json 
+            with open(config[f'{instr}' + '_flag_group'], "r") as f:
+                flag_group= json.load(f)
+
+           
+            
+            state_dict['flagX'] = [[state_dict.copy()['flagX'][i] for i in g ] for g in flag_group['flagX']]  
+            state_dict['flagZ'] = [[state_dict.copy()['flagZ'][i] for i in g ] for g in flag_group['flagZ']]  
 
         # -------------------------------
         # Leaf node (no branches)
@@ -118,7 +131,7 @@ def proof_protocol(protocol,
             full_path = cur_path + [step]
             
             all_paths.append(full_path)
-            print("len full_path:", len(all_paths))
+           
             # Leaf behavior
             if instr == 'Break':
                 return
@@ -148,7 +161,6 @@ def proof_protocol(protocol,
 
             # all states in full_state are dicts now
             full_state = [s["state"] for s in cur_path] + [state_dict]
-            
             z3_condition = condition_to_z3(cond_dict, full_state, groups)
 
             step = {
@@ -222,19 +234,15 @@ def read_state_variable(q_type: str, index: int, state: dict, groups : Dict):
 
 from z3 import BoolVal, BoolRef
 
-from z3 import BoolVal, BoolRef
 
-from z3 import BoolRef, BoolVal
-
-from z3 import BoolRef, BoolVal
-
-def read_operand(x, full_state, groups):
+def read_operand(x, full_state , group):
     """
     Interpret operands:
       - int / bool
       - 's_k' (syndrome bit from round k)
       - 'f_k' (flag bit from round k)
     """
+
     # ints / bools
     if isinstance(x, int) or isinstance(x, bool):
         return x
@@ -264,7 +272,8 @@ def read_operand(x, full_state, groups):
         flagX_list = state_dict.get("flagX", [])
         flagZ_list = state_dict.get("flagZ", [])
 
-        if kind == "s":
+        if kind == "s"  :
+
             # ancX.z followed by ancZ.x - take all syndrome bits from this round
             syn_bits = [q.z for q in ancX_list] + [q.x for q in ancZ_list]
             if not syn_bits:
@@ -274,9 +283,15 @@ def read_operand(x, full_state, groups):
             
             return syn_bits
 
-        elif kind == "f":
+        elif kind == "f"  :
+
+          
+            
+            flag_bits = [[q.z for q in (g if isinstance(g, list) else [g])]  for g in flagX_list ] + \
+                        [[q.x for q in (g if isinstance(g, list) else [g])]  for g in flagZ_list ]
+            
+        
             # flagX.z followed by flagZ.x - take all flag bits from this round  
-            flag_bits = [q.z for q in flagX_list] + [q.x for q in flagZ_list]
             if not flag_bits:
                 raise IndexError(f"f_{round_idx} refers to round {round_idx}, but no flag bits found in that round")
             
@@ -302,7 +317,7 @@ def parse_lut_instr(name: str):
         raise ValueError(f"Bad LUT format: {name}")
 
     pairs = []
-    print("pairs:", pairs)
+    
     for kind, idx_str in zip(tokens[0::2], tokens[1::2]):
         if kind not in ("s", "f"):
             raise ValueError(f"Unknown LUT kind '{kind}' in {name}")
@@ -327,6 +342,7 @@ def condition_to_z3(cond: dict | None, full_state: dict, groups:Dict) -> Bool:
       - {"type":"equal",     "left":..., "right":...}
       - {"type":"not_equal", "left":..., "right":...}
     """
+    
     if cond is None:
         return BoolVal(True)  # no condition → always true
 
@@ -351,7 +367,8 @@ def condition_to_z3(cond: dict | None, full_state: dict, groups:Dict) -> Bool:
 
         # --- list vs bool (e.g. s_0 == 0) ---
         if isinstance(L, list) and isinstance(R, bool):
-           
+            L = [x for sub in (L if isinstance(L, list) else [L])
+         for x in (sub if isinstance(sub, list) else [sub])]
             if R:
                 # every bit in L must be true
                 return And(*[li == BoolVal(True) for li in L])
@@ -360,6 +377,8 @@ def condition_to_z3(cond: dict | None, full_state: dict, groups:Dict) -> Bool:
                 return And(*[li == BoolVal(False) for li in L])
                
         if isinstance(R, list) and isinstance(L, bool):
+            R = [x for sub in (R if isinstance(R, list) else [R])
+         for x in (sub if isinstance(sub, list) else [sub])]
             if L:
                 # every bit in L must be true
                 return And(*[ri == BoolVal(True) for ri in L])
@@ -375,7 +394,7 @@ def condition_to_z3(cond: dict | None, full_state: dict, groups:Dict) -> Bool:
             
             else:
                 from z3 import PbEq
-                return PbEq([(li, 1) for li in L], R)
+                return PbEq([(Or(li), 1) for li in L], R)
             
         if isinstance(R, list) and isinstance(L, int):
             if L < 0:
@@ -385,7 +404,7 @@ def condition_to_z3(cond: dict | None, full_state: dict, groups:Dict) -> Bool:
             
             else:
                 from z3 import PbEq
-                return PbEq([(ri, 1) for ri in R], L)
+                return PbEq([(Or(ri), 1) for ri in R], L)
       
         
 
@@ -431,14 +450,24 @@ def proof_path(path : list[dict], t : int , gen_syn : list ,all_condtion : list,
     faults =  [info["act"] for step in path for info in step["site_info"]]
     gen_syn_z3 = []
     for type, idx in gen_syn:
-        #print("type, idx:", type, idx)
-        if type == 's' :
-           
-            syn =  [ anc.z for anc in path[idx]["state"]["ancX"]] + [ anc.x for anc in path[idx]["state"]["ancZ"]]
-            gen_syn_z3 += syn 
-        elif type == 'f' :
-            flag =  [ flag.z for flag in path[idx]["state"]["flagX"]] + [ flag.x for flag in path[idx]["state"]["flagZ"] ]
-            gen_syn_z3 += flag 
+        # --- flatten helper (no function) ---
+        ancX = path[idx]["state"]["ancX"]
+        ancZ = path[idx]["state"]["ancZ"]
+        flagX = path[idx]["state"]["flagX"]
+        flagZ = path[idx]["state"]["flagZ"]
+
+        ancX = [q for g in ancX for q in (g if isinstance(g, list) else [g])]
+        ancZ = [q for g in ancZ for q in (g if isinstance(g, list) else [g])]
+        flagX = [q for g in flagX for q in (g if isinstance(g, list) else [g])]
+        flagZ = [q for g in flagZ for q in (g if isinstance(g, list) else [g])]
+
+        if type == "s":
+            syn = [a.z for a in ancX] + [a.x for a in ancZ]
+            gen_syn_z3 += syn
+
+        elif type == "f":
+            flg = [q.z for q in flagX] + [q.x for q in flagZ]
+            gen_syn_z3 += flg
     #    print("gen_syn_z3:", gen_syn_z3)
     at_most_t_faults = [AtMost( *faults , t)]
 
