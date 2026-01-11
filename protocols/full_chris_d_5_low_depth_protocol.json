@@ -33,7 +33,9 @@
             ]
         },
         "fromRoot-r0-f2#002": {
-            "instructions": [],
+            "instructions": [
+                "raw_syndrome"
+            ],
             "branches": [
                 {
                     "condition": null,
@@ -43,7 +45,7 @@
         },
         "lut#001": {
             "instructions": [
-                "LUT_s_0_f_0"
+                "LUT_s_0_f_0_s_1"
             ],
             "branches": []
         },
@@ -104,7 +106,9 @@
             ]
         },
         "fromRoot-r1-f1#004": {
-            "instructions": [],
+            "instructions": [
+                "raw_syndrome"
+            ],
             "branches": [
                 {
                     "condition": null,
@@ -114,7 +118,7 @@
         },
         "lut#002": {
             "instructions": [
-                "LUT_s_0_f_0_s_1_f_1"
+                "LUT_s_0_f_0_s_1_f_1_s_2"
             ],
             "branches": []
         },
@@ -302,7 +306,9 @@
             ]
         },
         "fromR0F0-r1-f2#009": {
-            "instructions": [],
+            "instructions": [
+                "raw_syndrome"
+            ],
             "branches": [
                 {
                     "condition": null,
@@ -312,7 +318,7 @@
         },
         "lut#005": {
             "instructions": [
-                "LUT_s_0_f_0_s_1_f_1"
+                "LUT_s_0_f_0_s_1_f_1_s_2"
             ],
             "branches": []
         },
@@ -373,7 +379,9 @@
             ]
         },
         "fromR0F0-r2-f1#011": {
-            "instructions": [],
+            "instructions": [
+                "raw_syndrome"
+            ],
             "branches": [
                 {
                     "condition": null,
@@ -383,7 +391,7 @@
         },
         "lut#006": {
             "instructions": [
-                "LUT_s_0_f_0_s_1_f_1_s_2_f_2"
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3"
             ],
             "branches": []
         },
@@ -432,7 +440,7 @@
         },
         "lut#009": {
             "instructions": [
-                "LUT_s_0_f_0_s_1_f_1_s_2_f_2"
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3"
             ],
             "branches": []
         },
@@ -520,7 +528,7 @@
         },
         "lut#011": {
             "instructions": [
-                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3_s_4"
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3"
             ],
             "branches": []
         },
@@ -537,12 +545,14 @@
         },
         "lut#012": {
             "instructions": [
-                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3_s_4_s_4"
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3_s_4"
             ],
             "branches": []
         },
         "fromR0F0Seq-r2-f2#019": {
-            "instructions": [],
+            "instructions": [
+                "raw_syndrome"
+            ],
             "branches": [
                 {
                     "condition": null,
@@ -552,7 +562,7 @@
         },
         "lut#013": {
             "instructions": [
-                "LUT_s_0_f_0_s_1_f_1_s_2_f_2"
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3"
             ],
             "branches": []
         },
@@ -613,7 +623,9 @@
             ]
         },
         "fromR0F0Seq-r3-f1#021": {
-            "instructions": [],
+            "instructions": [
+                "raw_syndrome"
+            ],
             "branches": [
                 {
                     "condition": null,
@@ -623,7 +635,7 @@
         },
         "lut#014": {
             "instructions": [
-                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3"
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3_s_4"
             ],
             "branches": []
         },
@@ -669,7 +681,9 @@
             ]
         },
         "fromR0F0Seq_r2_sneq#025": {
-            "instructions": [],
+            "instructions": [
+                "flag_syndrome"
+            ],
             "branches": [
                 {
                     "condition": {
@@ -702,7 +716,7 @@
         },
         "lut#017": {
             "instructions": [
-                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3"
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3_s_4"
             ],
             "branches": []
         },
@@ -790,7 +804,7 @@
         },
         "lut#019": {
             "instructions": [
-                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3_s_4_f_4_s_5"
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3_s_4_f_4"
             ],
             "branches": []
         },
@@ -807,7 +821,7 @@
         },
         "lut#020": {
             "instructions": [
-                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3_s_4_f_4_s_5_s_5"
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3_f_3_s_4_f_4_s_5"
             ],
             "branches": []
         },

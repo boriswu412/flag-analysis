@@ -1,0 +1,454 @@
+{
+    "start_node": "root",
+    "nodes": {
+        "root": {
+            "instructions": [
+                "XZZXI_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_0",
+                        "right": true
+                    },
+                    "target": "chris_d3_raw_0"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_0",
+                        "right": false
+                    },
+                    "target": "chris_d3_exec_1"
+                }
+            ]
+        },
+        "chris_d3_raw_0": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "chris_d3_ter_1"
+                }
+            ]
+        },
+        "chris_d3_ter_1": {
+            "instructions": [
+                "LUT_s_1"
+            ],
+            "branches": []
+        },
+        "chris_d3_exec_1": {
+            "instructions": [
+                "IXZZX_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_1",
+                        "right": true
+                    },
+                    "target": "chris_d3_raw_1"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_1",
+                        "right": false
+                    },
+                    "target": "chris_d3_exec_2"
+                }
+            ]
+        },
+        "chris_d3_raw_1": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "chris_d3_ter_2"
+                }
+            ]
+        },
+        "chris_d3_ter_2": {
+            "instructions": [
+                "LUT_s_2"
+            ],
+            "branches": []
+        },
+        "chris_d3_exec_2": {
+            "instructions": [
+                "XIXZZ_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_2",
+                        "right": true
+                    },
+                    "target": "chris_d3_raw_2"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_2",
+                        "right": false
+                    },
+                    "target": "chris_d3_exec_3"
+                }
+            ]
+        },
+        "chris_d3_raw_2": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "chris_d3_ter_3"
+                }
+            ]
+        },
+        "chris_d3_ter_3": {
+            "instructions": [
+                "LUT_s_3"
+            ],
+            "branches": []
+        },
+        "chris_d3_exec_3": {
+            "instructions": [
+                "ZXIXZ_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_3",
+                        "right": true
+                    },
+                    "target": "chris_d3_raw_3"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_3",
+                        "right": false
+                    },
+                    "target": "chris_d3_exec_4"
+                }
+            ]
+        },
+        "chris_d3_raw_3": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "chris_d3_ter_4"
+                }
+            ]
+        },
+        "chris_d3_ter_4": {
+            "instructions": [
+                "LUT_s_4"
+            ],
+            "branches": []
+        },
+        "chris_d3_exec_4": {
+            "instructions": [
+                "XZZXI_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_4",
+                        "right": true
+                    },
+                    "target": "chris_d3_raw_4"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_4",
+                        "right": false
+                    },
+                    "target": "chris_d3_exec_5"
+                }
+            ]
+        },
+        "chris_d3_raw_4": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "chris_d3_ter_5"
+                }
+            ]
+        },
+        "chris_d3_ter_5": {
+            "instructions": [
+                "LUT_s_5"
+            ],
+            "branches": []
+        },
+        "chris_d3_exec_5": {
+            "instructions": [
+                "IXZZX_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_5",
+                        "right": true
+                    },
+                    "target": "chris_d3_raw_5"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_5",
+                        "right": false
+                    },
+                    "target": "chris_d3_exec_6"
+                }
+            ]
+        },
+        "chris_d3_raw_5": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "chris_d3_ter_6"
+                }
+            ]
+        },
+        "chris_d3_ter_6": {
+            "instructions": [
+                "LUT_s_6"
+            ],
+            "branches": []
+        },
+        "chris_d3_exec_6": {
+            "instructions": [
+                "XIXZZ_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_6",
+                        "right": true
+                    },
+                    "target": "chris_d3_raw_6"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_6",
+                        "right": false
+                    },
+                    "target": "chris_d3_exec_7"
+                }
+            ]
+        },
+        "chris_d3_raw_6": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "chris_d3_ter_7"
+                }
+            ]
+        },
+        "chris_d3_ter_7": {
+            "instructions": [
+                "LUT_s_7"
+            ],
+            "branches": []
+        },
+        "chris_d3_exec_7": {
+            "instructions": [
+                "ZXIXZ_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_7",
+                        "right": true
+                    },
+                    "target": "chris_d3_raw_7"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_7",
+                        "right": false
+                    },
+                    "target": "chris_d3_exec_8"
+                }
+            ]
+        },
+        "chris_d3_raw_7": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "chris_d3_ter_8"
+                }
+            ]
+        },
+        "chris_d3_ter_8": {
+            "instructions": [
+                "LUT_s_8"
+            ],
+            "branches": []
+        },
+        "chris_d3_exec_8": {
+            "instructions": [],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "or",
+                        "operands": [
+                            {
+                                "type": "not",
+                                "operands": [
+                                    {
+                                        "type": "equal",
+                                        "left": "s_0",
+                                        "right": "s_4"
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "not",
+                                "operands": [
+                                    {
+                                        "type": "equal",
+                                        "left": "s_1",
+                                        "right": "s_5"
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "not",
+                                "operands": [
+                                    {
+                                        "type": "equal",
+                                        "left": "s_2",
+                                        "right": "s_6"
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "not",
+                                "operands": [
+                                    {
+                                        "type": "equal",
+                                        "left": "s_3",
+                                        "right": "s_7"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "target": "chris_d3_raw_mismatch_8"
+                },
+                {
+                    "condition": {
+                        "type": "not",
+                        "operands": [
+                            {
+                                "type": "or",
+                                "operands": [
+                                    {
+                                        "type": "not",
+                                        "operands": [
+                                            {
+                                                "type": "equal",
+                                                "left": "s_0",
+                                                "right": "s_4"
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "not",
+                                        "operands": [
+                                            {
+                                                "type": "equal",
+                                                "left": "s_1",
+                                                "right": "s_5"
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "not",
+                                        "operands": [
+                                            {
+                                                "type": "equal",
+                                                "left": "s_2",
+                                                "right": "s_6"
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "not",
+                                        "operands": [
+                                            {
+                                                "type": "equal",
+                                                "left": "s_3",
+                                                "right": "s_7"
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "target": "chris_d3_ter_10"
+                }
+            ]
+        },
+        "chris_d3_raw_mismatch_8": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "chris_d3_ter_9"
+                }
+            ]
+        },
+        "chris_d3_ter_9": {
+            "instructions": [
+                "LUT_s_9"
+            ],
+            "branches": []
+        },
+        "chris_d3_ter_10": {
+            "instructions": [
+                "LUT_s_4_s_5_s_6_s_7"
+            ],
+            "branches": []
+        }
+    }
+}

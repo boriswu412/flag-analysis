@@ -1,0 +1,13 @@
+stab_txt_path = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_divided/[[5,1,3]]_divided.txt
+raw_syndrome = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_divided/raw_[[5,1,3]]_divided_flag_syndrome.qasm
+IXZZX_f = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_divided/IXZZX_flag.qasm
+
+
+XIXZZ_f = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_divided/XIXZZ_flag.qasm
+
+XZZXI_f = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_divided/XZZXI_flag.qasm
+
+
+ZXIXZ_f = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_divided/ZXIXZ_flag.qasm
+log_txt_path =  /Users/wuboris/Desktop/flag verification/[[5,1,3]]_divided/[[5,1,3]]_divided_log_op.txt
+circuit_set = [ "XZZXI_f", "IXZZX_f",  "XIXZZ_f","ZXIXZ_f"]

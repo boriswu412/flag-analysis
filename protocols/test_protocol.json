@@ -1,0 +1,452 @@
+{
+    "start_node": "r_0_c_0#0",
+    "nodes": {
+        "r_0_c_0#0": {
+            "instructions": [
+                "XZZXI_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_0",
+                        "right": false
+                    },
+                    "target": "r_0_c_1#_1"
+                }
+            ]
+        },
+        "r_0_c_1#_1": {
+            "instructions": [
+                "IXZZX_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_1",
+                        "right": false
+                    },
+                    "target": "r_0_c_2#_2"
+                }
+            ]
+        },
+        "r_0_c_2#_2": {
+            "instructions": [
+                "XIXZZ_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_2",
+                        "right": false
+                    },
+                    "target": "r_0_c_3#_3"
+                }
+            ]
+        },
+        "r_0_c_3#_3": {
+            "instructions": [
+                "ZXIXZ_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_3",
+                        "right": false
+                    },
+                    "target": "r_1_c_0#_4"
+                }
+            ]
+        },
+        "r_1_c_0#_4": {
+            "instructions": [
+                "XZZXI_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_4",
+                        "right": false
+                    },
+                    "target": "r_1_c_1#_5"
+                }
+            ]
+        },
+        "r_1_c_1#_5": {
+            "instructions": [
+                "IXZZX_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_5",
+                        "right": false
+                    },
+                    "target": "r_1_c_2#_6"
+                }
+            ]
+        },
+        "r_1_c_2#_6": {
+            "instructions": [
+                "XIXZZ_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_6",
+                        "right": false
+                    },
+                    "target": "r_1_c_3#_7"
+                }
+            ]
+        },
+        "r_1_c_3#_7": {
+            "instructions": [
+                "ZXIXZ_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_7",
+                                "right": false
+                            },
+                            {
+                                "type": "and",
+                                "operands": [
+                                    {
+                                        "type": "equal",
+                                        "left": "s_0",
+                                        "right": "s_4"
+                                    },
+                                    {
+                                        "type": "equal",
+                                        "left": "s_1",
+                                        "right": "s_5"
+                                    },
+                                    {
+                                        "type": "equal",
+                                        "left": "s_2",
+                                        "right": "s_6"
+                                    },
+                                    {
+                                        "type": "equal",
+                                        "left": "s_3",
+                                        "right": "s_7"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "target": "r_2_c_0#_8"
+                }
+            ]
+        },
+        "r_2_c_0#_8": {
+            "instructions": [
+                "XZZXI_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_8",
+                        "right": false
+                    },
+                    "target": "r_2_c_1#_9"
+                }
+            ]
+        },
+        "r_2_c_1#_9": {
+            "instructions": [
+                "IXZZX_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_9",
+                        "right": false
+                    },
+                    "target": "r_2_c_2#_10"
+                }
+            ]
+        },
+        "r_2_c_2#_10": {
+            "instructions": [
+                "XIXZZ_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_10",
+                        "right": false
+                    },
+                    "target": "r_2_c_3#_11"
+                }
+            ]
+        },
+        "r_2_c_3#_11": {
+            "instructions": [
+                "ZXIXZ_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_11",
+                                "right": false
+                            },
+                            {
+                                "type": "not",
+                                "operands": [
+                                    {
+                                        "type": "and",
+                                        "operands": [
+                                            {
+                                                "type": "equal",
+                                                "left": "s_4",
+                                                "right": "s_8"
+                                            },
+                                            {
+                                                "type": "equal",
+                                                "left": "s_5",
+                                                "right": "s_9"
+                                            },
+                                            {
+                                                "type": "equal",
+                                                "left": "s_6",
+                                                "right": "s_10"
+                                            },
+                                            {
+                                                "type": "equal",
+                                                "left": "s_7",
+                                                "right": "s_11"
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "target": "r_3_c_0#_12"
+                }
+            ]
+        },
+        "r_3_c_0#_12": {
+            "instructions": [
+                "XZZXI_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_12",
+                        "right": false
+                    },
+                    "target": "r_3_c_1#_13"
+                }
+            ]
+        },
+        "r_3_c_1#_13": {
+            "instructions": [
+                "IXZZX_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_13",
+                        "right": false
+                    },
+                    "target": "r_3_c_2#_14"
+                }
+            ]
+        },
+        "r_3_c_2#_14": {
+            "instructions": [
+                "XIXZZ_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_14",
+                        "right": false
+                    },
+                    "target": "r_3_c_3#_15"
+                }
+            ]
+        },
+        "r_3_c_3#_15": {
+            "instructions": [
+                "ZXIXZ_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_15",
+                                "right": false
+                            },
+                            {
+                                "type": "and",
+                                "operands": [
+                                    {
+                                        "type": "equal",
+                                        "left": "s_8",
+                                        "right": "s_12"
+                                    },
+                                    {
+                                        "type": "equal",
+                                        "left": "s_9",
+                                        "right": "s_13"
+                                    },
+                                    {
+                                        "type": "equal",
+                                        "left": "s_10",
+                                        "right": "s_14"
+                                    },
+                                    {
+                                        "type": "equal",
+                                        "left": "s_11",
+                                        "right": "s_15"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "target": "r_4_c_0#_16"
+                }
+            ]
+        },
+        "r_4_c_0#_16": {
+            "instructions": [
+                "XZZXI_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_16",
+                        "right": false
+                    },
+                    "target": "r_4_c_1#_17"
+                }
+            ]
+        },
+        "r_4_c_1#_17": {
+            "instructions": [
+                "IXZZX_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_17",
+                        "right": false
+                    },
+                    "target": "r_4_c_2#_18"
+                }
+            ]
+        },
+        "r_4_c_2#_18": {
+            "instructions": [
+                "XIXZZ_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_18",
+                        "right": false
+                    },
+                    "target": "r_4_c_3#_19"
+                }
+            ]
+        },
+        "r_4_c_3#_19": {
+            "instructions": [
+                "ZXIXZ_f"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_19",
+                                "right": false
+                            },
+                            {
+                                "type": "not",
+                                "operands": [
+                                    {
+                                        "type": "and",
+                                        "operands": [
+                                            {
+                                                "type": "equal",
+                                                "left": "s_12",
+                                                "right": "s_16"
+                                            },
+                                            {
+                                                "type": "equal",
+                                                "left": "s_13",
+                                                "right": "s_17"
+                                            },
+                                            {
+                                                "type": "equal",
+                                                "left": "s_14",
+                                                "right": "s_18"
+                                            },
+                                            {
+                                                "type": "equal",
+                                                "left": "s_15",
+                                                "right": "s_19"
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "target": "terminal#_20"
+                }
+            ]
+        },
+        "terminal#_20": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "lut#_21"
+                }
+            ]
+        },
+        "lut#_21": {
+            "instructions": [
+                "LUT_s_20"
+            ],
+            "branches": []
+        }
+    }
+}

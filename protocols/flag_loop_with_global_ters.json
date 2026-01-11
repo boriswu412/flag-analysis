@@ -1,0 +1,102 @@
+{
+    "start_node": "root",
+    "nodes": {
+        "root": {
+            "instructions": [
+                "prepare",
+                "XZZXI"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_0",
+                        "right": true
+                    },
+                    "target": "ter_0"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_0",
+                        "right": false
+                    },
+                    "target": "circuit_1"
+                }
+            ]
+        },
+        "no_flags": {
+            "instructions": [
+                "Break"
+            ],
+            "branches": []
+        },
+        "ter_0": {
+            "instructions": [
+                "raw_syndrome",
+                "LUT_s_0_f_0"
+            ],
+            "branches": []
+        },
+        "circuit_1": {
+            "instructions": [
+                "IXZZX"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_1",
+                        "right": true
+                    },
+                    "target": "ter_1"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_1",
+                        "right": false
+                    },
+                    "target": "circuit_2"
+                }
+            ]
+        },
+        "ter_1": {
+            "instructions": [
+                "raw_syndrome",
+                "LUT_s_0_f_0_s_1_f_1"
+            ],
+            "branches": []
+        },
+        "circuit_2": {
+            "instructions": [
+                "XIXZZ"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_2",
+                        "right": true
+                    },
+                    "target": "ter_2"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_2",
+                        "right": false
+                    },
+                    "target": "no_flags"
+                }
+            ]
+        },
+        "ter_2": {
+            "instructions": [
+                "raw_syndrome",
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2"
+            ],
+            "branches": []
+        }
+    }
+}

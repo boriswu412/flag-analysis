@@ -1,0 +1,5 @@
+flag_syndrome = /Users/wuboris/Desktop/flag verification/chau_du_[[19,1,5]]/chao_du_[[19,1,5]]_flag_syndrome.qasm
+stab_txt_path = /Users/wuboris/Desktop/flag verification/chau_du_[[19,1,5]]/chao_du_[[19,1,5]]_stab.txt
+raw_syndrome = /Users/wuboris/Desktop/flag verification/chau_du_[[19,1,5]]/chao_du_[[19,1,5]]_raw_syndrome.qasm
+flag_syndrome_flag_group = /Users/wuboris/Desktop/flag verification/chau_du_[[19,1,5]]/chao_du_[[19,1,5]]_flag_group.json
+log_txt_path = /Users/wuboris/Desktop/flag verification/chau_du_[[19,1,5]]/chao_du_[[19,1,5]]_log.txt

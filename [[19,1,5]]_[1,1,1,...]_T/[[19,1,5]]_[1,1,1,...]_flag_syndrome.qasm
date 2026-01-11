@@ -8,65 +8,203 @@ qreg ancX[9];    // X-type ancillas
 qreg flagX[12];  // X-type flags (f1-f12)
 qreg flagZ[12];  // Z-type flags
 
-// =========================================================
-// SECTION 1: Z-TYPE STABILIZERS (Data controls Ancilla)
-// =========================================================
+// ---- control/target swapped (back) ----
+cx q[0], ancZ[0];
+cx q[2], ancZ[1];
+cx q[11], ancZ[2];
+cx q[5], ancZ[4];
+cx q[15], ancZ[5];
+cx q[9], ancZ[6];
+cx q[1], ancZ[3];
+cx q[8], ancZ[7];
+cx q[4], ancZ[8];
 
-// --- BLOCK 1 ---
-cx q[0], ancZ[0]; cx q[2], ancZ[1]; cx q[11], ancZ[2];
-cx q[1], ancZ[3]; cx q[5], ancZ[4]; cx q[15], ancZ[5];
-cx q[9], ancZ[6]; cx q[8], ancZ[7]; cx q[4], ancZ[8];
+barrier;
 
-// --- BLOCK 2 ---
-cx ancZ[0], flagX[0]; cx ancZ[1], flagX[1]; cx ancZ[2], flagX[2];
-cx ancZ[4], flagX[3]; cx ancZ[5], flagX[4]; cx ancZ[6], flagX[5];
-cx ancZ[7], flagX[6]; cx ancZ[8], flagX[8];
+cx flagX[0], ancZ[0];
+cx flagX[1], ancZ[1];
+cx flagX[2], ancZ[2];
+cx flagX[3], ancZ[4];
+cx flagX[4], ancZ[5];
+cx flagX[5], ancZ[6];
+cx flagX[6], ancZ[3];
+cx flagX[8], ancZ[7];
+cx flagX[10], ancZ[8];
 
-cx q[1], ancZ[0]; cx q[0], ancZ[1]; cx q[12], ancZ[2];
-cx q[3], ancZ[3]; cx q[16], ancZ[4]; cx q[6], ancZ[5];
-cx q[10], ancZ[6]; cx q[7], ancZ[7]; cx q[5], ancZ[8];
+barrier;
 
-// --- BLOCK 3 ---
-cx ancZ[0], flagX[0]; cx ancZ[1], flagX[1]; cx ancZ[2], flagX[2];
-cx ancZ[3], flagX[7]; cx ancZ[4], flagX[3]; cx ancZ[5], flagX[9];
-cx ancZ[6], flagX[10]; cx ancZ[7], flagX[4]; cx ancZ[8], flagX[11];
+cx q[1], ancZ[0];
+cx q[0], ancZ[1];
+cx q[12], ancZ[2];
+cx q[8], ancZ[4];
+cx q[16], ancZ[5];
+cx q[10], ancZ[6];
+cx q[4], ancZ[3];
+cx q[7], ancZ[7];
+cx q[6], ancZ[8];
 
-cx q[2], ancZ[0]; cx q[3], ancZ[2]; cx q[8], ancZ[3];
-cx q[13], ancZ[4]; cx q[18], ancZ[6]; cx q[4], ancZ[5];
+barrier;
 
-// --- BLOCK 4 ---
-cx ancZ[0], flagX[0]; cx ancZ[1], flagX[1]; cx ancZ[2], flagX[2];
-cx ancZ[3], flagX[3]; cx ancZ[4], flagX[4]; cx ancZ[5], flagX[5];
-cx ancZ[6], flagX[6]; cx ancZ[7], flagX[7]; cx ancZ[8], flagX[8];
+cx q[2], ancZ[0];
+cx q[4], ancZ[1];
+cx q[13], ancZ[2];
+cx q[15], ancZ[4];
+cx q[18], ancZ[5];
+cx q[14], ancZ[6];
+cx flagX[7], ancZ[3];
+cx flagX[9], ancZ[7];
+cx flagX[11], ancZ[8];
 
-barrier q, ancZ, flagX, ancX, flagZ;
+barrier;
 
-// =========================================================
-// SECTION 2: X-TYPE STABILIZERS (Roles Swapped)
-// =========================================================
+cx flagX[0], ancZ[0];
+cx flagX[1], ancZ[1];
+cx flagX[2], ancZ[2];
 
-// --- BLOCK 1: Ancilla controls Data ---
-cx ancX[0], q[0]; cx ancX[1], q[2]; cx ancX[2], q[11];
-cx ancX[3], q[1]; cx ancX[4], q[5]; cx ancX[5], q[15];
-cx ancX[6], q[9]; cx ancX[7], q[8]; cx ancX[8], q[4];
+cx flagX[3], ancZ[4];
+cx flagX[4], ancZ[5];
+cx flagX[5], ancZ[6];
 
-// --- BLOCK 2: Flag controls Ancilla ---
-cx flagZ[0], ancX[0]; cx flagZ[1], ancX[1]; cx flagZ[2], ancX[2];
-cx flagZ[3], ancX[4]; cx flagZ[4], ancX[5]; cx flagZ[5], ancX[6];
-cx flagZ[6], ancX[7]; cx flagZ[8], ancX[8];
+cx q[0], ancZ[3];
+cx q[10], ancZ[7];
+cx q[7], ancZ[8];
 
-cx ancX[0], q[1]; cx ancX[1], q[0]; cx ancX[2], q[12];
-cx ancX[3], q[3]; cx ancX[4], q[16]; cx ancX[5], q[6];
-cx ancX[6], q[10]; cx ancX[7], q[7]; cx ancX[8], q[5];
 
-// --- BLOCK 3: Flag controls Ancilla ---
-cx flagZ[0], ancX[0]; cx flagZ[1], ancX[1]; cx flagZ[2], ancX[2];
-cx flagZ[7], ancX[3]; cx flagZ[3], ancX[4]; cx flagZ[9], ancX[5];
-cx flagZ[10], ancX[6]; cx flagZ[4], ancX[7]; cx flagZ[11], ancX[8];
+barrier;
 
-cx ancX[0], q[2]; cx ancX[2], q[3]; cx ancX[3], q[8];
-cx ancX[4], q[13]; cx ancX[6], q[18]; cx ancX[5], q[4];
 
-// --- BLOCK 4: Final Flag Connections ---
-cx flagZ[0], ancX[0]; cx flagZ[1], ancX[1]; cx flagZ[2], ancX[2];
-cx flagZ[3], ancX[3]; cx flagZ[4], ancX[5]; cx flagZ[5], ancX[6];
+cx q[3], ancZ[0];
+cx q[6], ancZ[1];
+cx q[14], ancZ[2];
+cx q[18], ancZ[4];
+cx q[17], ancZ[5];
+cx q[11], ancZ[6];
+cx q[5], ancZ[3];
+cx q[9], ancZ[7];
+cx q[10], ancZ[8];
+
+barrier;
+
+cx flagX[6], ancZ[3];
+cx flagX[8], ancZ[7];
+cx flagX[10], ancZ[8];
+
+barrier;
+
+cx q[7], ancZ[3];
+cx q[15], ancZ[7];
+cx q[11], ancZ[8];
+
+barrier;
+
+cx flagX[7], ancZ[3];
+cx flagX[9], ancZ[7];
+cx flagX[11], ancZ[8];
+
+barrier;
+
+
+cx q[8], ancZ[3];
+cx q[16], ancZ[7];
+cx q[12], ancZ[8];
+
+barrier;
+
+// ---- control/target swapped ----
+cx ancX[0], q[0];
+cx ancX[1], q[2];
+cx ancX[2], q[11];
+cx ancX[4], q[5];
+cx ancX[5], q[15];
+cx ancX[6], q[9];
+cx ancX[3], q[1];
+cx ancX[7], q[8];
+cx ancX[8], q[4];
+
+barrier;
+
+cx ancX[0], flagZ[0];
+cx ancX[1], flagZ[1];
+cx ancX[2], flagZ[2];
+cx ancX[4], flagZ[3];
+cx ancX[5], flagZ[4];
+cx ancX[6], flagZ[5];
+cx ancX[3], flagZ[6];
+cx ancX[7], flagZ[8];
+cx ancX[8], flagZ[10];
+
+barrier;
+
+cx ancX[0], q[1];
+cx ancX[1], q[0];
+cx ancX[2], q[12];
+cx ancX[4], q[8];
+cx ancX[5], q[16];
+cx ancX[6], q[10];
+cx ancX[3], q[4];
+cx ancX[7], q[7];
+cx ancX[8], q[6];
+
+barrier;
+
+cx ancX[0], q[2];
+cx ancX[1], q[4];
+cx ancX[2], q[13];
+cx ancX[4], q[15];
+cx ancX[5], q[18];
+cx ancX[6], q[14];
+cx ancX[3], flagZ[7];
+cx ancX[7], flagZ[9];
+cx ancX[8], flagZ[11];
+
+barrier;
+
+cx ancX[0], flagZ[0];
+cx ancX[1], flagZ[1];
+cx ancX[2], flagZ[2];
+
+cx ancX[4], flagZ[3];
+cx ancX[5], flagZ[4];
+cx ancX[6], flagZ[5];
+
+cx ancX[3], q[0];
+cx ancX[7], q[10];
+cx ancX[8], q[7];
+
+barrier;
+
+cx ancX[0], q[3];
+cx ancX[1], q[6];
+cx ancX[2], q[14];
+cx ancX[4], q[18];
+cx ancX[5], q[17];
+cx ancX[6], q[11];
+cx ancX[3], q[5];
+cx ancX[7], q[9];
+cx ancX[8], q[10];
+
+barrier;
+
+cx ancX[3], flagZ[6];
+cx ancX[7], flagZ[8];
+cx ancX[8], flagZ[10];
+
+barrier;
+
+cx ancX[3], q[7];
+cx ancX[7], q[15];
+cx ancX[8], q[11];
+
+barrier;
+
+cx ancX[3], flagZ[7];
+cx ancX[7], flagZ[9];
+cx ancX[8], flagZ[11];
+
+barrier;
+
+cx ancX[3], q[8];
+cx ancX[7], q[16];
+cx ancX[8], q[12];
+
+barrier;

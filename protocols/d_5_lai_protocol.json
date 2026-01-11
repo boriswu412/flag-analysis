@@ -3,7 +3,7 @@
     "nodes": {
         "root": {
             "instructions": [
-                "flag_syndrome"
+                "flag_syndrome_Z"
             ],
             "branches": [
                 {
@@ -108,7 +108,7 @@
                                 "operands": [
                                     {
                                         "type": "equal",
-                                        "left": "f_1",
+                                        "left": "f_2",
                                         "right": false
                                     },
                                     {
@@ -139,7 +139,7 @@
                                         "operands": [
                                             {
                                                 "type": "equal",
-                                                "left": "f_1",
+                                                "left": "f_2",
                                                 "right": false
                                             },
                                             {

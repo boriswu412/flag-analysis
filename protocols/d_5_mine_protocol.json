@@ -1,0 +1,186 @@
+{
+    "start_node": "root",
+    "nodes": {
+        "root": {
+            "instructions": [
+                "flag_syndrome_Z"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "s_0",
+                                "right": false
+                            },
+                            {
+                                "type": "equal",
+                                "left": "f_0",
+                                "right": false
+                            }
+                        ]
+                    },
+                    "target": "s_0_f_0_all_zero"
+                },
+                {
+                    "condition": {
+                        "type": "not",
+                        "operands": [
+                            {
+                                "type": "and",
+                                "operands": [
+                                    {
+                                        "type": "equal",
+                                        "left": "s_0",
+                                        "right": false
+                                    },
+                                    {
+                                        "type": "equal",
+                                        "left": "f_0",
+                                        "right": false
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "target": "s_0_f_0_not_all_zero"
+                }
+            ]
+        },
+        "s_0_f_0_all_zero": {
+            "instructions": [
+                "Break"
+            ],
+            "branches": []
+        },
+        "s_0_f_0_not_all_zero": {
+            "instructions": [
+                "flag_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_1",
+                        "right": false
+                    },
+                    "target": "f_1_all_zero"
+                },
+                {
+                    "condition": {
+                        "type": "not",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_1",
+                                "right": false
+                            }
+                        ]
+                    },
+                    "target": "f_1_not_all_zero"
+                }
+            ]
+        },
+        "f_1_not_all_zero": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "ter_1"
+                }
+            ]
+        },
+        "f_1_all_zero": {
+            "instructions": [
+                "flag_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "and",
+                        "operands": [
+                            {
+                                "type": "equal",
+                                "left": "f_2",
+                                "right": false
+                            },
+                            {
+                                "type": "equal",
+                                "left": "s_1",
+                                "right": "s_2"
+                            }
+                        ]
+                    },
+                    "target": "f_2_all_zero_and_s_1_s_2_equal"
+                },
+                {
+                    "condition": {
+                        "type": "not",
+                        "operands": [
+                            {
+                                "type": "and",
+                                "operands": [
+                                    {
+                                        "type": "equal",
+                                        "left": "f_2",
+                                        "right": false
+                                    },
+                                    {
+                                        "type": "equal",
+                                        "left": "s_1",
+                                        "right": "s_2"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "target": "not_f_2_all_zero_s_1_s_2_equal"
+                }
+            ]
+        },
+        "ter_1": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2"
+            ],
+            "branches": []
+        },
+        "f_2_all_zero_and_s_1_s_2_equal": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "ter_2"
+                }
+            ]
+        },
+        "ter_2": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3"
+            ],
+            "branches": []
+        },
+        "not_f_2_all_zero_s_1_s_2_equal": {
+            "instructions": [
+                "raw_syndrome"
+            ],
+            "branches": [
+                {
+                    "condition": null,
+                    "target": "ter_3"
+                }
+            ]
+        },
+        "ter_3": {
+            "instructions": [
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2_s_3"
+            ],
+            "branches": []
+        }
+    }
+}

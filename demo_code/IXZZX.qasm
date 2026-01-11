@@ -21,6 +21,6 @@ cx  ancX[0] ,q[1];
 cx ancX[0], flagZ[0];
 cz q[2], ancX[0];
 cz q[3], ancX[0];
-cx ancX[0], flagZ[0];
-cx ancX[0] , q[4];
+//cx ancX[0], flagZ[0];
+//cx ancX[0] , q[4];
 

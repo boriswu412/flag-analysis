@@ -1,3 +1,4 @@
 flag_syndrome = /Users/wuboris/Desktop/flag verification/[[25,1,5]]_surface_code/[[25,1,5]]_flag_syndrome.qasm
 stab_txt_path = /Users/wuboris/Desktop/flag verification/[[25,1,5]]_surface_code/[[25,1,5]]_surface_code.txt
 raw_syndrome = /Users/wuboris/Desktop/flag verification/[[25,1,5]]_surface_code/raw_[[25,1,5]].qasm
+log_txt_path =/Users/wuboris/Desktop/flag verification/[[25,1,5]]_surface_code/[[25,1,5]]_log_op.txt

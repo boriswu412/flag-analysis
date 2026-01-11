@@ -7,6 +7,9 @@ from dataclasses import dataclass
 from typing import List, Tuple, Dict, Optional
 from pathlib  import Path
 
+
+from dimacs_bridge import build_dimacs, resolve_cryptominisat_binary, run_cryptominisat, model_to_z3_assignment, pretty_print_z3_assignment, pretty_print_true_z3_vars
+
 from circuit_op import *
 from protocol import *
 
@@ -15,19 +18,34 @@ from qiskit import QuantumCircuit
 
 from z3 import BoolVal, Xor, Bool,simplify,substitute, And, Not,Or, PbLe, AtMost,ForAll, Implies, Exists, PbGe, AtLeast
 
-from z3 import Solver, unsat, sat
+from z3 import Solver, unsat, sat, unknown
+
+import ast
+from pathlib import Path
 
 def read_config(path="config.txt"):
-    """Read the QASM path from a simple key=value text config."""
     config_file = Path(path)
     if not config_file.exists():
         raise FileNotFoundError("Missing config.txt file!")
 
     config = {}
     for line in config_file.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+
         if "=" in line:
             key, value = line.split("=", 1)
-            config[key.strip()] = value.strip()
+            key = key.strip()
+            value = value.strip()
+
+            try:
+                value = ast.literal_eval(value)
+            except Exception:
+                pass  # keep as string
+
+            config[key] = value
+
     return config
 
 
@@ -102,6 +120,11 @@ def detect_qubit_groups(qc: QuantumCircuit) -> Dict[str, List[int]]:
 
     return groups
 
+
+def data_only_groups_from_state_dict(state_dict):
+    # state_dict["data"] is a list of qubits (already extracted)
+    n = len(state_dict.get("data", []))
+    return {"data": list(range(n)), "ancX": [], "ancZ": [], "flagX": [], "flagZ": []}
 
 # ---------------------------
 # Split circuit 
@@ -775,7 +798,7 @@ def symbolic_execution_of_state(qasm_path: str,
        # print(f"Processing gate {i}: {name} on qubits {qidxs}")
         if name in ("h","s","sdg"):
             apply_qasm_gate_into_state(state, name, qidxs)
-            if i in fault_gate_indices:
+            if i in fault_gate_indices and fault_inject:
                 info = _inject_1q_fault_after(
                     state, qidxs[0],
                     fault_kind=None if fault_kind is None else fault_kind,
@@ -802,7 +825,7 @@ def symbolic_execution_of_state(qasm_path: str,
                 apply_cy(state, c, t)
 
                
-            if i in  fault_gate_indices:
+            if i in  fault_gate_indices and fault_inject:
                 info = _inject_2q_fault_after(
                     state, c, t,
                     fault_kind=None if fault_kind is None else fault_kind,
@@ -892,7 +915,7 @@ def symbolic_execution_of_state(qasm_path: str,
                 "act": v,
                 "fault_mode": "1q",
             })
-
+        
 
     return  (state,sites_info, snapshots) if track_steps else (state ,sites_info)
      
@@ -900,7 +923,78 @@ def symbolic_execution_of_state(qasm_path: str,
 ####-----------------------
 # proof for uniqness
 ####
-def uniqness_proof(vars :list,at_most_t_faults: list,condition :list ,  gen_syn_z3 :list, data_qubits : list,stab_txt_path: str):
+def last_ancilla_formulas(path, config, detect =False):
+    """
+    Returns:
+      gens: list[(Sx,Sz)]  (symplectic generators used for syndrome check)
+      syn_measured: list[z3.BoolRef]  (measured syndrome bits at the last ancilla step)
+
+    Syndrome convention (matches your proof_path):
+      syn_measured = [a.z for a in ancX] + [a.x for a in ancZ]
+    """
+    def flatten(xs):
+        return [q for g in xs for q in (g if isinstance(g, list) else [g])]
+
+    
+
+    def parse_pauli_instruction(instr: str):
+        # 'XIXZZ_s IYXXY_f' -> [('XIXZZ','s'), ('IYXXY','f')]
+        out = []
+        for tok in str(instr).split():
+            if "_" not in tok:
+                continue
+            p, tag = tok.split("_", 1)
+            out.append((p, tag))
+        return out
+
+    for step in reversed(path):
+        st = step.get("state", {})
+        ancX = flatten(st.get("ancX", []))
+        ancZ = flatten(st.get("ancZ", []))
+        if not ancX and not ancZ:
+            continue
+
+        # measured syndrome bits (z3 formulas)
+        syn_measured = [a.z for a in ancX] + [a.x for a in ancZ]
+
+        instr = step.get("instruction", None)
+
+        if instr in ("flag_syndrome", "raw_syndrome") or not(detect):
+            gens = load_symplectic_txt(config["stab_txt_path"])
+            return gens, syn_measured
+
+        gens = []
+        for pstr, tag in parse_pauli_instruction(instr):
+            
+            gens.append(pauli_string_to_symplectic(pstr))
+
+        if not gens:
+            raise ValueError(f"Last ancilla step has unsupported instruction: {instr}")
+
+        return gens, syn_measured
+
+    raise ValueError("No ancilla syndrome found in path")
+def stabilizer_syndrome_from_data(E_x, E_z, gens):
+    """
+    E_x, E_z: list[z3 BoolRef] for data qubits
+    gens: list[(Sx, Sz)] where Sx,Sz are lists[int 0/1] same length as E_x
+    returns: list[z3 BoolRef] syndrome bits, one per generator
+    """
+    syn = []
+    n = len(E_x)
+    for (Sx, Sz) in gens:
+        bit = BoolVal(False)
+        for i in range(n):
+            term = BoolVal(False)
+            if Sx[i]:
+                term = Xor(term, E_z[i])
+            if Sz[i]:
+                term = Xor(term, E_x[i])
+            bit = Xor(bit, term)
+        syn.append(simplify(bit))
+    return syn
+
+def uniqness_proof(vars :list,at_most_t_faults: list,condition :list ,  gen_syn_z3 :list, data_qubits : list,stab_txt_path: str, log_txt_path:str):
 
     """
     Prove that for a given set of faults, there is a unique syndrome pattern.
@@ -917,8 +1011,10 @@ def uniqness_proof(vars :list,at_most_t_faults: list,condition :list ,  gen_syn_
     E_x = [ data_qubit.x for data_qubit in data_qubits]
     E_z = [ data_qubit.z for data_qubit in data_qubits]
 
+    
 
-    condition_not_in_stab, gsel_1 = error_not_in_stabilizer(E_x, E_z, stab_txt_path, prefix = "gsel_1")
+
+    #condition_not_in_stab, gsel_1 = error_not_in_stabilizer(E_x, E_z, stab_txt_path, prefix = "gsel_1")
     
     
     
@@ -926,8 +1022,8 @@ def uniqness_proof(vars :list,at_most_t_faults: list,condition :list ,  gen_syn_
     ren_1 = make_renamer_from_symbols(vars, "_p1")
     ren_2 = make_renamer_from_symbols(vars, "_p2")
 
-    condition_not_in_stab_1 = primed_copy(condition_not_in_stab, ren_1)
-    condition_not_in_stab_2 = primed_copy(condition_not_in_stab, ren_2)
+    #condition_not_in_stab_1 = primed_copy(condition_not_in_stab, ren_1)
+    #condition_not_in_stab_2 = primed_copy(condition_not_in_stab, ren_2)
 
    
     condition_1 = primed_copy(condition, ren_1)
@@ -941,34 +1037,44 @@ def uniqness_proof(vars :list,at_most_t_faults: list,condition :list ,  gen_syn_
     gen_syn_z3_1 = primed_copy(gen_syn_z3, ren_1)
     gen_syn_z3_2 = primed_copy(gen_syn_z3, ren_2)
 
-    stab_eq , gsel = exists_stab_equiv(E_x_1, E_z_1, E_x_2, E_z_2, stab_txt_path)
+    #stab_eq , gsel = exists_stab_equiv(E_x_1, E_z_1, E_x_2, E_z_2, stab_txt_path)
 
-    """
-    assign = {"r_0_faulty_gate0_z0_p2": True, "r_0_faulty_gate0_x0_p2": True, "r_0_faulty_gate0_z0_p1": True,
-    "r_0_faulty_gate0_x1_p1": True, "gsel_0": True}
-    print("eval not exist " , eval_with_values( Not(Exists(gsel, stab_eq)),  assign))
-
-    print("stab_eq eval ", eval_with_values( stab_eq, assign))
-
-    for (x,y) in zip(E_x_1, E_z_1):
-        print("E_x_1 eval ", eval_with_values( x, assign), "E_z_1 eval ", eval_with_values( y, assign))
+    condition_E_1_neq_E_2 = []
+    for (ex1, ez1, ex2, ez2) in zip(E_x_1, E_z_1, E_x_2, E_z_2):
+        neq = Or(ex1 != ex2, ez1 != ez2)
+        condition_E_1_neq_E_2.append(neq)
+    condition_E_1_neq_E_2_formula = Or( *condition_E_1_neq_E_2 )
     
-    for (x,y) in zip(E_x_2, E_z_2):
-        print("E_x_2 eval ", eval_with_values( x, assign), "E_z_2 eval ", eval_with_values( y, assign))
+    E_1_add_E_2_X = [Xor(ex1, ex2) for (ex1, ex2) in zip(E_x_1, E_x_2)] 
+    E_1_add_E_2_Z = [Xor(ez1, ez2) for (ez1, ez2) in zip(E_z_1, E_z_2)]
     
-    """
-
+    condition_pauli_not_in_stab= pauli_not_in_stabilizer(E_1_add_E_2_X,E_1_add_E_2_Z, stab_txt_path, log_txt_path)
+    condition_E_1_not_in_stab =pauli_not_in_stabilizer(E_x_1,E_z_1, stab_txt_path, log_txt_path)
+    condition_E_2_not_in_stab =pauli_not_in_stabilizer(E_x_2,E_z_2, stab_txt_path, log_txt_path)
+   
+   
     same_syn =  And( *[x == y for x, y in zip(gen_syn_z3_1, gen_syn_z3_2)] )
     s = Solver()
-    s.add(And(*condition_not_in_stab_1))
-    s.add(And(*condition_not_in_stab_2))
-    s.add(same_syn, Not(Exists(gsel, stab_eq)))
+    s.set("timeout", 3600000) 
+    #s.add(And(*condition_not_in_stab_1))
+    #s.add(And(*condition_not_in_stab_2))
+    s.add(same_syn)
+    #s.add(Not(Exists(gsel, stab_eq)))
     s.add(And( *condition_1))
     s.add(And( *condition_2))
     s.add(at_most_t_faults_1)
     s.add(at_most_t_faults_2)
-
+    s.add(condition_E_1_neq_E_2_formula)
+    s.add(condition_pauli_not_in_stab)
+    s.add(condition_E_1_not_in_stab)
+    s.add(condition_E_2_not_in_stab)
+    #s.add(condition_not_in_stab)
     print("Result:")
+
+    if s.check() == unknown:
+        print("Solver timed out")
+        print(s.reason_unknown())
+        return False
     if s.check() == unsat :
        
         print("Success: every error maps to different generalised syndrome")
@@ -1012,8 +1118,205 @@ def uniqness_proof(vars :list,at_most_t_faults: list,condition :list ,  gen_syn_
             print(other_dict)
 
         return False
+    
+import subprocess
+import re
+from z3 import *
+import os
+import shutil
+
+def uniqueness_build_goal(vars, at_most_t_faults, condition, gen_syn_z3,
+                          data_qubits, stab_txt_path, log_txt_path):
+    # same construction as your uniqness_proof, but into a Goal
+    E_x = [dq.x for dq in data_qubits]
+    E_z = [dq.z for dq in data_qubits]
+
+    ren_1 = make_renamer_from_symbols(vars, "_p1")
+    ren_2 = make_renamer_from_symbols(vars, "_p2")
+
+    condition_1 = primed_copy(condition, ren_1)
+    condition_2 = primed_copy(condition, ren_2)
+
+    E_x_1 = primed_copy(E_x, ren_1)
+    E_z_1 = primed_copy(E_z, ren_1)
+    E_x_2 = primed_copy(E_x, ren_2)
+    E_z_2 = primed_copy(E_z, ren_2)
+
+    at_most_t_faults_1 = primed_copy(at_most_t_faults, ren_1)
+    at_most_t_faults_2 = primed_copy(at_most_t_faults, ren_2)
+
+    gen_syn_z3_1 = primed_copy(gen_syn_z3, ren_1)
+    gen_syn_z3_2 = primed_copy(gen_syn_z3, ren_2)
+    '''
+    print("len gen_syn_z3_1:", len(gen_syn_z3_1))
+    print("eval gen_syn_z3_1:", eval_with_values(gen_syn_z3_1, {'r_0_faulty_gate42_z1_p1': True, 'r_0_faulty_gate54_z0_p1': True, 'r_0_faulty_gate42_z0_p1': True}))
+    print("eval gen_syn_z3_2:", eval_with_values(gen_syn_z3_2, {'r_3_faulty_gate11_z1_p2': True, 'r_3_faulty_gate11_z0_p2': True, 'r_3_faulty_gate31_z1_p2': True}))
+    '''
+    # E1 != E2
+    neq_terms = [Or(ex1 != ex2, ez1 != ez2)
+                 for ex1, ez1, ex2, ez2 in zip(E_x_1, E_z_1, E_x_2, E_z_2)]
+    condition_E_1_neq_E_2_formula = Or(*neq_terms)
+
+    
+    # XOR diffs (will become CNF later)
+    E_1_add_E_2_X = [Xor(ex1, ex2) for ex1, ex2 in zip(E_x_1, E_x_2)]
+    E_1_add_E_2_Z = [Xor(ez1, ez2) for ez1, ez2 in zip(E_z_1, E_z_2)]
+
+    condition_pauli_not_in_stab = pauli_not_in_stabilizer(
+        E_1_add_E_2_X, E_1_add_E_2_Z, stab_txt_path, log_txt_path
+    )
+    condition_E_1_not_in_stab = pauli_not_in_stabilizer(
+        E_x_1, E_z_1, stab_txt_path, log_txt_path
+    )
+    condition_E_2_not_in_stab = pauli_not_in_stabilizer(
+        E_x_2, E_z_2, stab_txt_path, log_txt_path
+    )
+
+    same_syn = And(*[x == y for x, y in zip(gen_syn_z3_1, gen_syn_z3_2)])
+
+    g = Goal()
+    g.add(same_syn)
+    g.add(And(*condition_1))
+    g.add(And(*condition_2))
+    g.add(at_most_t_faults_1)
+    g.add(at_most_t_faults_2)
+    g.add(condition_E_1_neq_E_2_formula)
+    g.add(condition_pauli_not_in_stab)
+    g.add(condition_E_1_not_in_stab)
+    g.add(condition_E_2_not_in_stab)
+    return g
+
+import subprocess
+import re
+from z3 import Then  # make sure Goal/Then exist in your imports
 
 
+##-----------------------
+# solve uniqueness constraints with CryptoMiniSat
+####
+import os, re, shutil, subprocess
+from typing import List, Tuple, Optional
+
+
+
+
+
+
+
+def uniqueness_solve_with_cryptominisat(
+    vars,
+    at_most_t_faults,
+    condition,
+    gen_syn_z3,
+    data_qubits,
+    stab_txt_path,
+    log_txt_path,
+    out_cnf: str = "uniq.cnf",
+    cms_bin: str = "cryptominisat5",
+    cms_extra_args: list = None,
+    use_card2bv: bool = True,
+    timeout_s: Optional[float] = None,
+    keep_cnf_files: bool = True,
+):
+    """
+    Z3 -> CNF (DIMACS) -> CryptoMiniSat.
+
+    IMPORTANT (matches old caller contract):
+      returns (status, model_lits, solver_output)
+        status in {"sat","unsat","unknown"}
+        model_lits: list[int] or None
+        solver_output: str
+
+    Semantics for this *uniqueness* check:
+      - SAT   => counterexample exists (uniqueness FAIL)
+      - UNSAT => no counterexample (uniqueness HOLDS)
+
+    If Z3 tactic pipeline creates multiple subgoals, the whole formula is
+    the conjunction of subgoals. Therefore:
+      - if ANY subgoal is UNSAT => whole is UNSAT
+      - else if ANY is UNKNOWN  => whole is UNKNOWN
+      - else ALL are SAT        => whole is SAT
+    """
+
+    # 1) Build the Z3 goal
+    g = uniqueness_build_goal(
+        vars, at_most_t_faults, condition, gen_syn_z3,
+        data_qubits, stab_txt_path, log_txt_path
+    )
+
+    # 2) Convert to CNF (possibly multiple subgoals)
+    cnf_files, var_maps = build_dimacs(g, use_card2bv)
+
+    # Rename CNFs if caller passed a base name
+    base = out_cnf[:-4] if out_cnf.endswith(".cnf") else out_cnf
+    renamed = []
+    for i, p in enumerate(cnf_files):
+        newp = f"{base}_sub{i}.cnf"
+        if p != newp:
+            try:
+                os.replace(p, newp)
+                p = newp
+            except OSError:
+                # if rename fails, just keep original
+                pass
+        renamed.append(p)
+    cnf_files = renamed
+
+    # 3) Find CryptoMiniSat
+    cms_exec = resolve_cryptominisat_binary(cms_bin)
+
+    # 4) Solve each subgoal
+    outputs = []
+    outputs.append(
+        f"[info] num_subgoals={len(cnf_files)} use_card2bv={use_card2bv} timeout_s={timeout_s}\n"
+    )
+
+    any_unknown = False
+    collected_model_lits = None
+
+    for i, (cnf, vmap) in enumerate(zip(cnf_files, var_maps)):
+        st, lits, out = run_cryptominisat(cnf, cms_exec, timeout_s=timeout_s, cms_extra_args=cms_extra_args)
+
+        outputs.append(f"\n===== Subgoal {i} : {st.upper()}  ({cnf}) =====\n")
+        outputs.append(out)
+
+        if st == "unsat":
+            print("UNSAT")
+            print("Success: uniqueness holds")
+            # whole conjunction UNSAT
+            if not keep_cnf_files:
+                for p in cnf_files:
+                    try:
+                        os.remove(p)
+                    except OSError:
+                        pass
+            return "unsat", None, "".join(outputs)
+
+        if st == "unknown":
+            any_unknown = True
+
+        if st == "sat" and lits:
+            if collected_model_lits is None:
+                collected_model_lits = lits
+               
+
+       
+            p1, p2 = pretty_print_true_z3_vars(lits, vmap)
+            print("p1 true vars:", p1)
+            print("p2 true vars:", p2)
+            # 5) Cleanup
+            if not keep_cnf_files:
+                for p in cnf_files:
+                    try:
+                        os.remove(p)
+                    except OSError:
+                        pass
+
+    # 6) Final
+    if any_unknown:
+        return "unknown", None, "".join(outputs)
+
+    return "sat", collected_model_lits, "".join(outputs)
     
 
 from copy import deepcopy
@@ -1297,6 +1600,24 @@ def load_symplectic_txt(path: str):
             gens.append((Sx, Sz))
     return gens
 
+def pauli_string_to_symplectic(pstr: str):
+    """
+    Convert Pauli string like 'XIXZZ' into (Sx, Sz)
+    """
+    Sx, Sz = [], []
+    for p in pstr:
+        if p == "I":
+            Sx.append(0); Sz.append(0)
+        elif p == "X":
+            Sx.append(1); Sz.append(0)
+        elif p == "Z":
+            Sx.append(0); Sz.append(1)
+        elif p == "Y":
+            Sx.append(1); Sz.append(1)
+        else:
+            raise ValueError(f"Unknown Pauli {p}")
+    return Sx, Sz
+
 def anticomm_formula(Sx, Sz, varenv):
     """
     Build z3 Bool formula:
@@ -1484,6 +1805,35 @@ def error_not_in_stabilizer(E_x, E_z, stab_txt_path: str, *, prefix: str = "gsel
     #   s.add(And(*condition_not_in_stab_1))
     # still works.
     return [not_in_stab], gsel
+
+def pauli_not_in_stabilizer(E_x, E_z, stab_txt_path: str,log_txt_path: str):
+    gens = load_symplectic_txt(stab_txt_path)
+    log_op = load_symplectic_txt(log_txt_path)
+
+    log_stab = gens + log_op
+
+    m = len(log_stab); n = len(E_x)
+
+    commute = []
+    for i, (P_x, P_z) in enumerate(log_stab):
+        commute_x = []
+        commute_z = []
+        for j in range(n):
+
+            if P_x[j]:
+                commute_x.append( E_z[j] )
+            if P_z[j]:
+                commute_z.append( E_x[j] )
+
+        commute_x_z = commute_x + commute_z
+        commute.append(xor_list(commute_x_z))
+
+    return Or(commute)
+        
+
+
+
+
 
 
 
@@ -1884,7 +2234,7 @@ def find_bad_locations(qasm_path: str, stab_txt_path: str,num_gates: int):
 
     return bad_locations_dict
 """
-def check_flag_raised(qasm_path: str, stab_txt_path: str,num_gates: int, bad_locations_dict: List[int]):
+def check_flag_raised(qasm_path: str, stab_txt_path: str,num_gates: int, bad_locations_dict: List[int], *, t =1):
     
     
     state, qc, sites_info, groups = build_state_with_faults_after_gates(qasm_path ,bad_locations_dict, fault_mode="2q")    
@@ -1946,11 +2296,11 @@ def check_flag_raised(qasm_path: str, stab_txt_path: str,num_gates: int, bad_loc
     #s.add(Exists(all_fault_vars,  ForAll(gsel,And(PbGe( [(bi, 1) for bi in b], 2), And([Not(f) for f in F]))) ) )
     s.add(
         And(
-            ForAll(gsel, PbGe([(bi,1) for bi in b], 2)),
+            ForAll(gsel, PbGe([(bi,1) for bi in b], t+1)),
             Not(Or(F))
         )
     )
-    s.add(AtMost(*acts,1 ))  # At most two faults
+    s.add(AtMost(*acts,t ))  # At most two faults
    
 
     #print(s.check())

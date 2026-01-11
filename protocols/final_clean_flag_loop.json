@@ -1,0 +1,101 @@
+{
+    "start_node": "root",
+    "nodes": {
+        "root": {
+            "instructions": [
+                "XZZXI"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_0",
+                        "right": true
+                    },
+                    "target": "myloop_recovery_0"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_0",
+                        "right": false
+                    },
+                    "target": "myloop_circuit_1"
+                }
+            ]
+        },
+        "no_flags": {
+            "instructions": [
+                "Break"
+            ],
+            "branches": []
+        },
+        "myloop_recovery_0": {
+            "instructions": [
+                "raw_syndrome",
+                "LUT_s_0_f_0"
+            ],
+            "branches": []
+        },
+        "myloop_circuit_1": {
+            "instructions": [
+                "IXZZX"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_1",
+                        "right": true
+                    },
+                    "target": "myloop_recovery_1"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_1",
+                        "right": false
+                    },
+                    "target": "myloop_circuit_2"
+                }
+            ]
+        },
+        "myloop_recovery_1": {
+            "instructions": [
+                "raw_syndrome",
+                "LUT_s_0_f_0_s_1_f_1"
+            ],
+            "branches": []
+        },
+        "myloop_circuit_2": {
+            "instructions": [
+                "XIXZZ"
+            ],
+            "branches": [
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_2",
+                        "right": true
+                    },
+                    "target": "myloop_recovery_2"
+                },
+                {
+                    "condition": {
+                        "type": "equal",
+                        "left": "f_2",
+                        "right": false
+                    },
+                    "target": "no_flags"
+                }
+            ]
+        },
+        "myloop_recovery_2": {
+            "instructions": [
+                "raw_syndrome",
+                "LUT_s_0_f_0_s_1_f_1_s_2_f_2"
+            ],
+            "branches": []
+        }
+    }
+}

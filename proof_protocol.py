@@ -8,7 +8,7 @@ from protocol import *
 from qiskit import QuantumCircuit
 
 
-from z3 import BoolVal, Xor, Bool,simplify,substitute, And, Not,Or, PbLe, AtMost,ForAll, Implies, Exists, PbGe, AtLeast
+from z3 import Bool, BoolVal, Xor, Bool,simplify,substitute, And, Not,Or, PbLe, AtMost,ForAll, Implies, Exists, PbGe, AtLeast,PbEq
 
 from z3 import Solver, unsat, sat
 
@@ -47,8 +47,7 @@ def proof_protocol(protocol,
                   start_node: str,
                   init_state,
                   config: Dict,
-                  t: int,
-                  stab_txt_path: str):
+                  t: int):
 
     all_paths = []
 
@@ -57,6 +56,8 @@ def proof_protocol(protocol,
             cur_state,          # CircuitXZ
             cur_groups,         # dict or None
             cur_path: List[Dict]):
+        
+        #if len(all_paths) == 9 :  return  # stop exploring more branches
 
         node = protocol[node_id]
 
@@ -64,9 +65,10 @@ def proof_protocol(protocol,
         # Execute instruction (if exists)
         # -------------------------------
         instr = node.instructions[0] if node.instructions else None
+        print("Current node:", node_id, "Instruction:", instr)
         state_after = cur_state
         site_info = []
-        groups = cur_groups  # default: carry from parent
+        groups =  cur_groups
 
         if instr is not None and node.branches:
             # This is a circuit instruction (e.g. flag_syndrome, raw_syndrome)
@@ -79,6 +81,8 @@ def proof_protocol(protocol,
             groups = detect_qubit_groups(qc)   # new groups for this circuit
 
             print("round:", round_idx, "node:", node_id, "instr:", instr)
+
+            
             state_after, site_info = symbolic_execution_of_state(
                 qasm_path,
                 cur_state,
@@ -86,32 +90,35 @@ def proof_protocol(protocol,
                 fault_gate=gate_list,
                 track_steps=False
             )
+            '''
+            for i, q in enumerate(state_after.qubits):
+              #print(f"  q[{i}]: X = {q.x}, Z = {q.z}")
+            '''           
 
         # -------------------------------
         # Build dict-view of state_after
         # -------------------------------
         if groups is not None:
+
+            state_dict = state_to_raw_expr_dict(state_after, groups)
+
+        elif instr is None or instr == 'Break' or instr.startswith("LUT_"): 
+            print("in condition round:", round_idx, "node:", node_id, "instr:", instr)
+            # Break instruction with no anc/flag structure; keep only data as a list
+            #print("state after:", state_after)
             state_dict = state_to_raw_expr_dict(state_after, groups)
        
 
         
         else:
             # no anc/flag structure yet; keep only data as a list
-            state_dict = {
-                "data": list(state_after.qubits),
-                "ancX": [],
-                "ancZ": [],
-                "flagX": [],
-                "flagZ": [],
-            }
+            state_dict = state_to_raw_expr_dict(state_after, groups)
 
         if f'{instr}' + '_flag_group' in config:
             import json 
             with open(config[f'{instr}' + '_flag_group'], "r") as f:
                 flag_group= json.load(f)
 
-           
-            
             state_dict['flagX'] = [[state_dict.copy()['flagX'][i] for i in g ] for g in flag_group['flagX']]  
             state_dict['flagZ'] = [[state_dict.copy()['flagZ'][i] for i in g ] for g in flag_group['flagZ']]  
 
@@ -142,13 +149,36 @@ def proof_protocol(protocol,
                     if s["condition"] is not None
                 ]
                 gen_syn = parse_lut_instr(instr)
-              
-                
+                print("gen_syn:", gen_syn)
+
+                ####check the last syndrome is the correct syndrome due to the data qubits
+                # final data error
+                E_x = [dq.x for dq in full_path[-1]["state"]["data"]]
+                E_z = [dq.z for dq in full_path[-1]["state"]["data"]]
 
                 
-                proof_path(full_path, t, gen_syn, all_condition, stab_txt_path)
+                gens, syn_measured = last_ancilla_formulas(full_path, config)
+                pred_syn = stabilizer_syndrome_from_data(E_x, E_z, gens)
+
                 
-                return
+
+                # enforce: measured syndrome == commutation syndrome
+                syn_constraint = And(*[
+                    s_m == s_p for s_m, s_p in zip(syn_measured, pred_syn)
+                ])
+
+                
+
+                all_condition = all_condition + [syn_constraint]
+              
+                
+                print("len all paths:", len(all_paths))
+                
+                if len(all_paths) >= 9 :
+                    
+                    proof_path(full_path, t, gen_syn, all_condition, config['stab_txt_path'], config['log_txt_path'])
+                
+                return 
             else:
                 # leaf with some other instruction, but nothing to prove
                 return
@@ -172,16 +202,21 @@ def proof_protocol(protocol,
                 "state": state_dict,       # dict
                 "site_info": site_info
             }
+            next_groups = data_only_groups_from_state_dict(state_dict)
 
             dfs(
                 round_idx + 1,
                 br.target,
                 state_after,   # still CircuitXZ
-                groups,        # carry the same groups forward
+                next_groups,        # carry the same groups forward
                 cur_path + [step]
             )
 
+    
     # initial call: no groups yet, clean data state
+    
+
+    
     dfs(0, start_node, init_state, None, [])
     return all_paths
 from z3 import BoolVal, And, Or, Not
@@ -323,6 +358,19 @@ def parse_lut_instr(name: str):
             raise ValueError(f"Unknown LUT kind '{kind}' in {name}")
         pairs.append((kind, int(idx_str)))
     return pairs
+
+def parse_pauli_instruction(instr: str):
+    """
+    Example:
+      'XIXZZ_s IYXXY_f' → [('XIXZZ','s'), ('IYXXY','f')]
+    """
+    out = []
+    for tok in instr.split():
+        if "_" not in tok:
+            continue
+        p, tag = tok.split("_")
+        out.append((p, tag))
+    return out
 # -----------------------------------
 # Main translator: condition → z3 expr
 # -----------------------------------
@@ -430,7 +478,7 @@ def condition_to_z3(cond: dict | None, full_state: dict, groups:Dict) -> Bool:
         return L == R
 
 
-def proof_path(path : list[dict], t : int , gen_syn : list ,all_condtion : list, stab_txt_path: str) :
+def proof_path(path : list[dict], t : int , gen_syn : list ,all_condtion : list, stab_txt_path: str,  log_txt_path: str) :
     """
     Given a path (list of steps with conditions and states), build a z3 formula
     that encodes the conditions along the path.
@@ -469,13 +517,23 @@ def proof_path(path : list[dict], t : int , gen_syn : list ,all_condtion : list,
             flg = [q.z for q in flagX] + [q.x for q in flagZ]
             gen_syn_z3 += flg
     #    print("gen_syn_z3:", gen_syn_z3)
-    at_most_t_faults = [AtMost( *faults , t)]
+    at_most_t_faults = [PbEq( [(f,1) for f in faults ], t)]
 
-    return uniqness_proof(vars, at_most_t_faults,all_condtion,  gen_syn_z3, path[-1]["state"]["data"],stab_txt_path)
-    
-    
     
 
+
+
+
+    #return uniqness_proof(vars, at_most_t_faults,all_condtion,  gen_syn_z3, path[-1]["state"]["data"],stab_txt_path, log_txt_path)
+   # return  uniqueness_build_goal(vars, at_most_t_faults,all_condtion,  gen_syn_z3, path[-1]["state"]["data"],stab_txt_path, log_txt_path)
+    #return uniqueness_solve_with_cryptominisat(vars, at_most_t_faults,all_condtion,  gen_syn_z3, path[-1]["state"]["data"],stab_txt_path, log_txt_path)
+    
+    status, model_lits, out = uniqueness_solve_with_cryptominisat(vars, at_most_t_faults,all_condtion,  gen_syn_z3, path[-1]["state"]["data"],stab_txt_path, log_txt_path)
+    
+    
+    
+    return 0
+    
     # Add fault constraints if needed
     
 
