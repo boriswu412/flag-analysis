@@ -747,6 +747,7 @@ def symbolic_execution_of_state(qasm_path: str,
                                 track_steps: bool = False,
                                 reset_groups=("ancX", "ancZ", "flagX", "flagZ"),
                                 fault_inject : bool = True,
+                                fault_inject_on_anc_and_flag : bool = False,
                                 fault_mode = "either",
                                 fault_kind = None 
                                 ):
@@ -856,8 +857,9 @@ def symbolic_execution_of_state(qasm_path: str,
             raise NotImplementedError(f"Unsupported gate: {name}")
         if track_steps:
             snapshots.append((i, name, tuple(qidxs), deepcopy(state)))
-        
-    if fault_inject:
+    
+    
+    if fault_inject_on_anc_and_flag :
       
         # groups already computed above
         ancX_idxs = group_idxs.get("ancX", [])
