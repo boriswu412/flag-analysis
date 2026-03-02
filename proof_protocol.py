@@ -367,11 +367,13 @@ def proof_protocol_boolean(protocol,
             
             # Store collected data
             faults = [info["act"] for step in full_path for info in step["site_info"]]
+            at_most_t_faults = PbEq([(f, 1) for f in faults], t) if faults else BoolVal(True)
             path_data = {
                 "last_data": last_data,
                 "anc_flag_per_round": anc_flag_per_round,
                 "conditions": path_conditions,
-                "faults": faults
+                "faults": faults,
+                "at_most_t_faults": at_most_t_faults
             }
             all_path_data.append(path_data)
            
@@ -441,6 +443,9 @@ def proof_protocol_boolean(protocol,
         print(f"\n0. Fault variables (count = {len(path_data['faults'])}):")
         for f_idx, f in enumerate(path_data["faults"]):
             print(f"   f[{f_idx}]: {f}")
+        
+        print(f"\n   At-most-{t}-faults constraint (PbEq):")
+        print(f"   {path_data['at_most_t_faults']}")
         
         # Print last round data qubits
         print(f"\n1. Last Round Data Qubits ({len(path_data['last_data'])} qubits):")
