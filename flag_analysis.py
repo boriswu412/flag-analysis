@@ -64,6 +64,7 @@ class QubitXZ:
 class CircuitXZ:
     qubits: List[QubitXZ]
 
+
 # ---------------------------
 # Boolean helpers
 # ---------------------------
@@ -257,6 +258,7 @@ def apply_notnot(state: CircuitXZ, ctrl: int, targ: int) -> None:
     state.qubits[ctrl].z = zc
     state.qubits[targ].x = bxor(xt, zc)
     state.qubits[targ].z = zt
+
 
 # ---------------------------
 # Fault injection on FLAG
@@ -2064,12 +2066,26 @@ def prove_syndrome_extractions(qasm_path: str, stab_txt_path: str):
     state, qc, varenv = build_variable_state_from_qasm(qasm_path)
     groups = detect_qubit_groups(qc)
 
+    print("Built state:", state)
+    print("All qubits in state:")
+    for i, q in enumerate(state.qubits):
+        print(f"  qubit {i}: {q}")
+
+    print("Data qubits indices:", groups["data"])
+    print("Data qubits state:", [state.qubits[i] for i in groups["data"]])
+    print("AncX qubits indices:", groups["ancX"])
+    print("AncX qubits state:", [state.qubits[i] for i in groups["ancX"]])
+
+    data_exprs = data_qubits(state, groups["data"])  # list of (x,z) pairs for data qubits
+    
+    
     # Flip predicates (basis-aware)
     synX_exprs = ancillas_X(state, groups["ancX"])   # X-type syndromes (check .z)
     synZ_exprs = ancillas_Z(state, groups["ancZ"])   # Z-type syndromes (check .x)
     flgX_exprs = flags_X(state, groups["flagX"])     # flags measured in X (check .z)
     flgZ_exprs = flags_Z(state, groups["flagZ"])     # flags measured in Z (check .x)
 
+    
     
     # Build an assignment:
     # - allow arbitrary data errors via named vars (you can set a subset True)
@@ -2097,7 +2113,7 @@ def prove_syndrome_extractions(qasm_path: str, stab_txt_path: str):
     #print("Flags Z-basis:", flgZ_vals)
 
     # Load stabilizers
-    stabs = load_symplectic_txt( stab_txt_path)
+    stabs = load_symplectic_txt(stab_txt_path)
     #print("Stabilizers:", stabs)
     # Get Boolean formulas
     stab_exprs = [anticomm_formula(Sx, Sz, varenv) for Sx,Sz in stabs]
@@ -2240,6 +2256,10 @@ def check_flag_raised(qasm_path: str, stab_txt_path: str,num_gates: int, bad_loc
     
     
     state, qc, sites_info, groups = build_state_with_faults_after_gates(qasm_path ,bad_locations_dict, fault_mode="2q")    
+    print("Built state (check_flag_raised):", state)
+    print("All qubits in state (check_flag_raised):")
+    for i, q in enumerate(state.qubits):
+        print(f"  qubit {i}: {q}")
     #print(sites_info)
 
     data_idxs = groups["data"]

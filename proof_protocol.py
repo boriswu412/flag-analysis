@@ -364,6 +364,23 @@ def proof_protocol_boolean(protocol,
                 s["condition"] for s in full_path
                 if s["condition"] is not None
             ]
+            syn_constraint = None
+            syn_measured = None
+            pred_syn = None
+
+            if instr and instr.startswith("LUT_"):
+                # final data error
+                E_x = [dq.x for dq in full_path[-1]["state"]["data"]]
+                E_z = [dq.z for dq in full_path[-1]["state"]["data"]]
+
+                gens, syn_measured = last_ancilla_formulas(full_path, config)
+                pred_syn = stabilizer_syndrome_from_data(E_x, E_z, gens)
+
+                # enforce: measured syndrome == commutation syndrome
+                syn_constraint = And(*[
+                    s_m == s_p for s_m, s_p in zip(syn_measured, pred_syn)
+                ])
+                path_conditions = path_conditions + [syn_constraint]
             
             # Store collected data
             faults = [info["act"] for step in full_path for info in step["site_info"]]
@@ -372,6 +389,9 @@ def proof_protocol_boolean(protocol,
                 "last_data": last_data,
                 "anc_flag_per_round": anc_flag_per_round,
                 "conditions": path_conditions,
+                "syn_measured": syn_measured,
+                "pred_syn": pred_syn,
+                "syn_constraint": syn_constraint,
                 "faults": faults,
                 "at_most_t_faults": at_most_t_faults
             }
@@ -440,6 +460,12 @@ def proof_protocol_boolean(protocol,
     print("="*80)
     for i, path_data in enumerate(all_path_data):
         print(f"\n--- PATH {i+1} ---")
+        print(f"\nMeasured syndrome:")
+        print(f"   {path_data['syn_measured']}")
+        print(f"\nCommutation syndrome:")
+        print(f"   {path_data['pred_syn']}")
+        print(f"\nSyndrome equality constraint:")
+        print(f"   {path_data['syn_constraint']}")
         print(f"\n0. Fault variables (count = {len(path_data['faults'])}):")
         for f_idx, f in enumerate(path_data["faults"]):
             print(f"   f[{f_idx}]: {f}")
