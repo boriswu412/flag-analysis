@@ -837,8 +837,8 @@ def proof_path(path : list[dict], t : int , gen_syn : list ,all_condtion : list,
     #return uniqueness_solve_with_cryptominisat(vars, at_most_t_faults,all_condtion,  gen_syn_z3, path[-1]["state"]["data"],stab_txt_path, log_txt_path)
     
     status, model_lits, out = uniqueness_solve_with_cryptominisat(vars, at_most_t_faults,all_condtion,  gen_syn_z3, path[-1]["state"]["data"],stab_txt_path, log_txt_path)
-    
-    
+    print(out)
+
     
     return 0
     

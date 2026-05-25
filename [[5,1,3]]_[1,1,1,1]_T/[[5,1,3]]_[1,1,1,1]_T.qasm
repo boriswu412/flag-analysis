@@ -21,7 +21,7 @@ barrier q, ancX, ancZ, flagX, flagZ;
 cx ancX[0], flagZ[0];
 cx ancX[1], flagZ[1];
 cx ancX[2], flagZ[2];
-//cx ancX[3], flagZ[3];
+cx ancX[3], flagZ[3];
 
 barrier q, ancX, ancZ, flagX, flagZ;
 

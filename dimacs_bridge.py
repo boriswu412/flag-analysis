@@ -18,7 +18,7 @@ This file provides:
 
 from __future__ import annotations
 from typing import Dict, List, Tuple, Set, Iterable, Optional
-import os, re, shutil, subprocess
+import os, re, shutil, subprocess, sys, time
 
 
 from z3 import (
@@ -367,7 +367,7 @@ def run_cryptominisat(
     cms_exec: str,
     timeout_s: Optional[float] = None,
     cms_extra_args: Optional[list] = None,
-) -> Tuple[str, Optional[List[int]], str]:
+) -> Tuple[str, Optional[List[int]], str, float, Optional[int]]:
     """
     Returns (status, model_lits, out_str) with out_str CLEAN:
       - only 's ...' and 'v ...' lines (drops all 'c ...' stats)
@@ -377,12 +377,43 @@ def run_cryptominisat(
         cmd += list(map(str, cms_extra_args))
     cmd.append(cnf_path)
 
+    timed_cmd = cmd
+    use_time_wrapper = sys.platform == "darwin"
+    if use_time_wrapper:
+        timed_cmd = ["/usr/bin/time", "-l"] + cmd
+
+    start = time.perf_counter()
+
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
+        p = subprocess.run(timed_cmd, capture_output=True, text=True, timeout=timeout_s)
     except subprocess.TimeoutExpired:
-        return "unknown", None, "s UNKNOWN\n"
+        elapsed_s = time.perf_counter() - start
+        return "unknown", None, "s UNKNOWN\n", elapsed_s, None
+
+    elapsed_s = time.perf_counter() - start
 
     raw = (p.stdout or "") + "\n" + (p.stderr or "")
+    peak_rss_bytes: Optional[int] = None
+    if use_time_wrapper:
+        match = re.search(r"(\d+)\s+maximum resident set size", raw)
+        if not match:
+            match = re.search(r"maximum resident set size\s+(\d+)", raw)
+        if not match:
+            match = re.search(r"(\d+)\s+peak memory footprint", raw)
+        if match:
+            peak_rss_bytes = int(match.group(1))
+    else:
+        try:
+            import resource
+
+            usage = resource.getrusage(resource.RUSAGE_CHILDREN)
+            rss = usage.ru_maxrss
+            peak_rss_bytes = int(rss * 1024)
+        except Exception:
+            peak_rss_bytes = None
+
+    if peak_rss_bytes is not None and peak_rss_bytes <= 0:
+        peak_rss_bytes = None
 
     kept_lines = []
     model_lits: List[int] = []
@@ -411,7 +442,11 @@ def run_cryptominisat(
         status = "sat"
 
     clean_out = "\n".join(kept_lines) + ("\n" if kept_lines else "")
-    return status, (model_lits if model_lits else None), clean_out
+    summary_lines = [f"[stats] solver_wall_time_seconds={elapsed_s:.6f}"]
+    if peak_rss_bytes is not None:
+        summary_lines.append(f"[stats] solver_peak_rss_bytes={peak_rss_bytes}")
+    clean_out += "\n".join(summary_lines) + "\n"
+    return status, (model_lits if model_lits else None), clean_out, elapsed_s, peak_rss_bytes
 
 
 def _parse_z3_dimacs_varmap(dimacs_text: str) -> Dict[int, str]:

@@ -1277,9 +1277,21 @@ def uniqueness_solve_with_cryptominisat(
 
     any_unknown = False
     collected_model_lits = None
+    total_solver_time_s = 0.0
+    peak_solver_rss_bytes = None
+
+    def finalize(status: str, model_lits):
+        summary_lines = [f"[stats] total_solver_time_seconds={total_solver_time_s:.6f}"]
+        if peak_solver_rss_bytes is not None:
+            summary_lines.append(f"[stats] peak_solver_rss_bytes={peak_solver_rss_bytes}")
+        outputs.append("\n" + "\n".join(summary_lines) + "\n")
+        return status, model_lits, "".join(outputs)
 
     for i, (cnf, vmap) in enumerate(zip(cnf_files, var_maps)):
-        st, lits, out = run_cryptominisat(cnf, cms_exec, timeout_s=timeout_s, cms_extra_args=cms_extra_args)
+        st, lits, out, elapsed_s, rss_bytes = run_cryptominisat(cnf, cms_exec, timeout_s=timeout_s, cms_extra_args=cms_extra_args)
+        total_solver_time_s += elapsed_s
+        if rss_bytes is not None:
+            peak_solver_rss_bytes = rss_bytes if peak_solver_rss_bytes is None else max(peak_solver_rss_bytes, rss_bytes)
 
         outputs.append(f"\n===== Subgoal {i} : {st.upper()}  ({cnf}) =====\n")
         outputs.append(out)
@@ -1294,7 +1306,7 @@ def uniqueness_solve_with_cryptominisat(
                         os.remove(p)
                     except OSError:
                         pass
-            return "unsat", None, "".join(outputs)
+            return finalize("unsat", None)
 
         if st == "unknown":
             any_unknown = True
@@ -1318,9 +1330,9 @@ def uniqueness_solve_with_cryptominisat(
 
     # 6) Final
     if any_unknown:
-        return "unknown", None, "".join(outputs)
+        return finalize("unknown", None)
 
-    return "sat", collected_model_lits, "".join(outputs)
+    return finalize("sat", collected_model_lits)
     
 
 from copy import deepcopy
