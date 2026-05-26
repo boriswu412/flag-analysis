@@ -519,7 +519,7 @@ def build_flag_protocol_chris_d_3():
         node_id="root",
         instructions=["flag_syndrome"],
         branches=[Branch(target="r_0_flagged", condition = condition_r_1_flagged),
-                  Branch(target="r_0_not_flagged", condition = Condition("not", operand=condition_f_0_all_zero))]
+                  Branch(target="r_0_not_flagged", condition = condition_f_0_all_zero)]
 
     )
     protocol.add_node(root_node)
