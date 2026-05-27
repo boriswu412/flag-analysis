@@ -333,7 +333,7 @@ def build_protocol_d_5_lai() -> Protocol:
     # Root node with unconditional branch to flag_measure
     root_node = Node(
         node_id="root",
-        instructions=["flag_syndrome_Z"],
+        instructions=["flag_syndrome"],
         branches=[Branch(target="s_0_f_0_all_zero", condition= condition_0),
                   Branch(target="s_0_f_0_not_all_zero", condition = Condition("not", operand=condition_0))]
     )
