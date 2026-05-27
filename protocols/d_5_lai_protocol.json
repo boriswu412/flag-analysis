@@ -104,24 +104,14 @@
                         "type": "and",
                         "operands": [
                             {
-                                "type": "and",
-                                "operands": [
-                                    {
-                                        "type": "equal",
-                                        "left": "f_2",
-                                        "right": false
-                                    },
-                                    {
-                                        "type": "equal",
-                                        "left": "s_1",
-                                        "right": "s_2"
-                                    }
-                                ]
+                                "type": "equal",
+                                "left": "f_2",
+                                "right": false
                             },
                             {
                                 "type": "equal",
                                 "left": "s_1",
-                                "right": false
+                                "right": "s_2"
                             }
                         ]
                     },
@@ -135,24 +125,14 @@
                                 "type": "and",
                                 "operands": [
                                     {
-                                        "type": "and",
-                                        "operands": [
-                                            {
-                                                "type": "equal",
-                                                "left": "f_2",
-                                                "right": false
-                                            },
-                                            {
-                                                "type": "equal",
-                                                "left": "s_1",
-                                                "right": "s_2"
-                                            }
-                                        ]
+                                        "type": "equal",
+                                        "left": "f_2",
+                                        "right": false
                                     },
                                     {
                                         "type": "equal",
                                         "left": "s_1",
-                                        "right": false
+                                        "right": "s_2"
                                     }
                                 ]
                             }

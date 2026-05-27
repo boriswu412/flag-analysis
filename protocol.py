@@ -362,13 +362,12 @@ def build_protocol_d_5_lai() -> Protocol:
     
 
      #node f_1_not_all_zero
-    condition_s_1_all_zero = Condition(cond_type="equal", left="s_1", right= False)
+    
     condition_f_2_all_zero = Condition(cond_type="equal", left="f_2", right= False)
     condition_s_1_s_2_equal = Condition(cond_type="equal", left="s_1", right="s_2")
     condition_f_2_all_zero_and_s_1_s_2_equal = Condition("and", operands=[condition_f_2_all_zero, condition_s_1_s_2_equal])
-    condition_f_2_all_zero_and_s_1_s_2_equal_and_s_1_all_zero = Condition("and", operands=[condition_f_2_all_zero_and_s_1_s_2_equal, condition_s_1_all_zero])
     
-    condition_not_f_2_all_zero_and_s_1_s_2_equal_and_s_1_all_zero = Condition("not", operand= condition_f_2_all_zero_and_s_1_s_2_equal_and_s_1_all_zero)
+    condition_not_f_2_all_zero_and_s_1_s_2_equal = Condition("not", operand= condition_f_2_all_zero_and_s_1_s_2_equal)
     
 
     f_1_not_all_zero = Node(
@@ -380,8 +379,8 @@ def build_protocol_d_5_lai() -> Protocol:
     f_1_all_zero = Node(
         node_id="f_1_all_zero",
         instructions=["flag_syndrome"],
-        branches=[Branch(target="f_2_all_zero_and_s_1_s_2_equal", condition= condition_f_2_all_zero_and_s_1_s_2_equal_and_s_1_all_zero),
-                  Branch(target="not_f_2_all_zero_s_1_s_2_equal", condition= condition_not_f_2_all_zero_and_s_1_s_2_equal_and_s_1_all_zero)]
+        branches=[Branch(target="f_2_all_zero_and_s_1_s_2_equal", condition= condition_f_2_all_zero_and_s_1_s_2_equal),
+                  Branch(target="not_f_2_all_zero_s_1_s_2_equal", condition= condition_not_f_2_all_zero_and_s_1_s_2_equal)]
     )
     protocol.add_node(f_1_all_zero)    
 
