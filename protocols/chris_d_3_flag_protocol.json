@@ -21,14 +21,9 @@
                 },
                 {
                     "condition": {
-                        "type": "not",
-                        "operands": [
-                            {
-                                "type": "equal",
-                                "left": "f_0",
-                                "right": false
-                            }
-                        ]
+                        "type": "equal",
+                        "left": "f_0",
+                        "right": false
                     },
                     "target": "r_0_not_flagged"
                 }
