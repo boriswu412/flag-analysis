@@ -3,7 +3,7 @@
     "nodes": {
         "root": {
             "instructions": [
-                "flag_syndrome_Z"
+                "flag_syndrome"
             ],
             "branches": [
                 {

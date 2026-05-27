@@ -11,9 +11,9 @@
 <!-- root -->
 <g id="node1" class="node">
 <title>root</title>
-<ellipse fill="none" stroke="black" cx="405.47" cy="-1411.42" rx="79.73" ry="28.99"/>
+<ellipse fill="none" stroke="black" cx="405.47" cy="-1411.42" rx="69.12" ry="28.99"/>
 <text text-anchor="middle" x="405.47" y="-1414.62" font-family="Times,serif" font-size="14.00">root</text>
-<text text-anchor="middle" x="405.47" y="-1398.12" font-family="Times,serif" font-size="14.00">flag_syndrome_Z</text>
+<text text-anchor="middle" x="405.47" y="-1398.12" font-family="Times,serif" font-size="14.00">flag_syndrome</text>
 </g>
 <!-- s_0_f_0_all_zero -->
 <g id="node2" class="node">
@@ -25,7 +25,7 @@
 <!-- root&#45;&gt;s_0_f_0_all_zero -->
 <g id="edge1" class="edge">
 <title>root&#45;&gt;s_0_f_0_all_zero</title>
-<path fill="none" stroke="black" d="M379.45,-1383.7C374.98,-1377.77 370.92,-1371.21 368.22,-1364.43 322.36,-1249.13 328.65,-1098.46 335.01,-1028"/>
+<path fill="none" stroke="black" d="M380.02,-1384.45C375.33,-1378.32 371.03,-1371.5 368.22,-1364.43 322.36,-1249.13 328.65,-1098.46 335.01,-1028"/>
 <polygon fill="black" stroke="black" points="338.48,-1028.39 335.96,-1018.1 331.52,-1027.72 338.48,-1028.39"/>
 <text text-anchor="middle" x="423.35" y="-1309.88" font-family="Times,serif" font-size="14.00">{</text>
 <text text-anchor="middle" x="423.35" y="-1293.38" font-family="Times,serif" font-size="14.00"> &#160;&quot;type&quot;: &quot;and&quot;,</text>
@@ -53,7 +53,7 @@
 <!-- root&#45;&gt;s_0_f_0_not_all_zero -->
 <g id="edge2" class="edge">
 <title>root&#45;&gt;s_0_f_0_not_all_zero</title>
-<path fill="none" stroke="black" d="M454.23,-1388.13C463.61,-1381.74 472.39,-1373.88 478.47,-1364.43 546.67,-1258.43 541.41,-1100.83 534.41,-1027.99"/>
+<path fill="none" stroke="black" d="M451.97,-1389.63C462.19,-1382.99 471.91,-1374.63 478.47,-1364.43 546.67,-1258.43 541.41,-1100.83 534.41,-1027.99"/>
 <polygon fill="black" stroke="black" points="537.9,-1027.73 533.39,-1018.14 530.93,-1028.45 537.9,-1027.73"/>
 <text text-anchor="middle" x="600.93" y="-1351.13" font-family="Times,serif" font-size="14.00">{</text>
 <text text-anchor="middle" x="600.93" y="-1334.63" font-family="Times,serif" font-size="14.00"> &#160;&quot;type&quot;: &quot;not&quot;,</text>
