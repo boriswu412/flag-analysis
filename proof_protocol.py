@@ -65,7 +65,7 @@ def proof_protocol(protocol,
         # Execute instruction (if exists)
         # -------------------------------
         instr = node.instructions[0] if node.instructions else None
-        print("Current node:", node_id, "Instruction:", instr)
+        # Keep traversal logs quiet by default; leaf summaries are printed below.
         state_after = cur_state
         site_info = []
         groups =  cur_groups
@@ -80,7 +80,7 @@ def proof_protocol(protocol,
             gate_list = get_gate_only_indices(qc)
             groups = detect_qubit_groups(qc)   # new groups for this circuit
 
-            print("round:", round_idx, "node:", node_id, "instr:", instr)
+            # round-level execution trace suppressed
 
             
             state_after, site_info = symbolic_execution_of_state(
@@ -103,7 +103,7 @@ def proof_protocol(protocol,
             state_dict = state_to_raw_expr_dict(state_after, groups)
 
         elif instr is None or instr == 'Break' or instr.startswith("LUT_"): 
-            print("in condition round:", round_idx, "node:", node_id, "instr:", instr)
+            # condition trace suppressed
             # Break instruction with no anc/flag structure; keep only data as a list
             #print("state after:", state_after)
             state_dict = state_to_raw_expr_dict(state_after, groups)
@@ -140,46 +140,62 @@ def proof_protocol(protocol,
             all_paths.append(full_path)
            
             # Leaf behavior
-            if instr == 'Break':
-                return
-            elif instr and instr.startswith("LUT_"):  # FIX: Added null check
-                print("LUT", instr)
-                all_condition = [
-                    s["condition"] for s in full_path
-                    if s["condition"] is not None
-                ]
-                gen_syn = parse_lut_instr(instr)
-                print("gen_syn:", gen_syn)
+            path_type = classify_terminal_path(instr)
 
-                ####check the last syndrome is the correct syndrome due to the data qubits
-                # final data error
+            if path_type == 0:
+                # Type 0: Break path, skip verification.
+                return
+
+            # Resolve generalized-syndrome selector from LUT instruction.
+            lut_instr = None
+            if instr and instr.startswith("LUT_"):
+                lut_instr = instr
+            else:
+                for prev_step in reversed(full_path[:-1]):
+                    prev_instr = prev_step.get("instruction")
+                    if prev_instr and prev_instr.startswith("LUT_"):
+                        lut_instr = prev_instr
+                        break
+
+            gen_syn = parse_lut_instr(lut_instr) if lut_instr else []
+
+            all_condition = [
+                s["condition"] for s in full_path
+                if s["condition"] is not None
+            ]
+
+            if path_type == 2:
+                # Final data error formulas used to compute predicted syndrome.
                 E_x = [dq.x for dq in full_path[-1]["state"]["data"]]
                 E_z = [dq.z for dq in full_path[-1]["state"]["data"]]
 
-                
                 gens, syn_measured = last_ancilla_formulas(full_path, config)
                 pred_syn = stabilizer_syndrome_from_data(E_x, E_z, gens)
 
-                
-
-                # enforce: measured syndrome == commutation syndrome
+                # Enforce measured syndrome equals commutation-predicted syndrome.
                 syn_constraint = And(*[
                     s_m == s_p for s_m, s_p in zip(syn_measured, pred_syn)
                 ])
-
-                
-
                 all_condition = all_condition + [syn_constraint]
-              
-                
-                print("len all paths:", len(all_paths))
-                
-                proof_path(full_path, t, gen_syn, all_condition, config['stab_txt_path'], config['log_txt_path'])
-                
-                return 
-            else:
-                # leaf with some other instruction, but nothing to prove
+
+                status, counterexample = proof_path(full_path, t, gen_syn, all_condition, config['stab_txt_path'], config['log_txt_path'], verify_mode="type2")
+                print(f"Path {len(all_paths) - 1}: Type 2 -> {status.upper()}")
+                if status == "sat" and counterexample is not None:
+                    print(f"  Counterexample p1: {counterexample.get('p1', {})}")
+                    print(f"  Counterexample p2: {counterexample.get('p2', {})}")
                 return
+
+            # Type 1 verification: requires generalized syndrome selector from LUT.
+            if instr and instr.startswith("LUT_"):
+                status, counterexample = proof_path(full_path, t, gen_syn, all_condition, config['stab_txt_path'], config['log_txt_path'], verify_mode="type1")
+                print(f"Path {len(all_paths) - 1}: Type 1 -> {status.upper()}")
+                if status == "sat" and counterexample is not None:
+                    print(f"  Counterexample p1: {counterexample.get('p1', {})}")
+                    print(f"  Counterexample p2: {counterexample.get('p2', {})}")
+                return
+
+            # Type 1 without LUT selector is currently not verified.
+            return
 
         # -------------------------------
         # Branching
@@ -393,7 +409,9 @@ def proof_protocol_boolean(protocol,
                 "pred_syn": pred_syn,
                 "syn_constraint": syn_constraint,
                 "faults": faults,
-                "at_most_t_faults": at_most_t_faults
+                "at_most_t_faults": at_most_t_faults,
+                "terminal_instruction": instr,
+                "path_type": classify_terminal_path(instr)
             }
             all_path_data.append(path_data)
            
@@ -458,8 +476,13 @@ def proof_protocol_boolean(protocol,
     print("\n" + "="*80)
     print(f"COLLECTED DATA FROM {len(all_path_data)} PATHS")
     print("="*80)
+
+    type_counts = {0: 0, 1: 0, 2: 0}
     for i, path_data in enumerate(all_path_data):
+        path_type = path_data.get("path_type", 1)
+        type_counts[path_type] = type_counts.get(path_type, 0) + 1
         print(f"\n--- PATH {i} ---")
+        print(f"Path type: Type {path_type}")
         print(f"\nMeasured syndrome:")
         print(f"   {path_data['syn_measured']}")
         print(f"\nCommutation syndrome:")
@@ -523,6 +546,7 @@ def proof_protocol_boolean(protocol,
             print(f"   Condition {cond_idx}: {cond}")
     
     print("\n" + "="*80)
+    print(f"Type counts: Type 0={type_counts.get(0, 0)}, Type 1={type_counts.get(1, 0)}, Type 2={type_counts.get(2, 0)}")
     
     return all_paths, all_path_data
 from z3 import BoolVal, And, Or, Not
@@ -784,7 +808,7 @@ def condition_to_z3(cond: dict | None, full_state: dict, groups:Dict) -> Bool:
         return L == R
 
 
-def proof_path(path : list[dict], t : int , gen_syn : list ,all_condtion : list, stab_txt_path: str,  log_txt_path: str) :
+def proof_path(path : list[dict], t : int , gen_syn : list ,all_condtion : list, stab_txt_path: str,  log_txt_path: str, verify_mode: str = "type1") :
     """
     Given a path (list of steps with conditions and states), build a z3 formula
     that encodes the conditions along the path.
@@ -836,11 +860,19 @@ def proof_path(path : list[dict], t : int , gen_syn : list ,all_condtion : list,
    # return  uniqueness_build_goal(vars, at_most_t_faults,all_condtion,  gen_syn_z3, path[-1]["state"]["data"],stab_txt_path, log_txt_path)
     #return uniqueness_solve_with_cryptominisat(vars, at_most_t_faults,all_condtion,  gen_syn_z3, path[-1]["state"]["data"],stab_txt_path, log_txt_path)
     
-    status, model_lits, out = uniqueness_solve_with_cryptominisat(vars, at_most_t_faults,all_condtion,  gen_syn_z3, path[-1]["state"]["data"],stab_txt_path, log_txt_path)
-    print(out)
+    status, model_lits, out, counterexample = uniqueness_solve_with_cryptominisat(
+        vars,
+        at_most_t_faults,
+        all_condtion,
+        gen_syn_z3,
+        path[-1]["state"]["data"],
+        stab_txt_path,
+        log_txt_path,
+        witness_mode=verify_mode,
+        verbose=False,
+    )
 
-    
-    return 0
+    return status, counterexample
     
     # Add fault constraints if needed
     

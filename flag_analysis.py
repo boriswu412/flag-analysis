@@ -563,7 +563,7 @@ def build_state_with_faults_after_gates(qasm_path: str, gate_indices: list, faul
     qc = load_qasm(qasm_path)
     state = new_clean_circuit_state(qc.num_qubits)
     groups = detect_qubit_groups(qc)
-    print("groups detected:", groups)
+    # groups debug print suppressed
     sites_info = []
 
     gate_indices = set(gate_indices)  # so we can check membership quickly
@@ -571,7 +571,7 @@ def build_state_with_faults_after_gates(qasm_path: str, gate_indices: list, faul
     for i, (instr, qargs, _) in enumerate(qc.data):
         name = instr.name
         qidxs = [_qiskit_qubit_index(qc, q) for q in qargs]
-        print(f"Processing gate {i}: {name} on qubits {qidxs}")
+        # per-gate debug print suppressed
         if name in ("h","s","sdg"):
             apply_qasm_gate_into_state(state, name, qidxs)
             if i in gate_indices:
@@ -678,7 +678,7 @@ def symbolic_propagate_with_resets(
     groups = detect_qubit_groups(qc)   # expects keys: 'data','ancX','ancZ','flagX','flagZ'
     group_idxs = {g: groups.get(g, []) for g in ("data","ancX","ancZ","flagX","flagZ")}
 
-    print("groups detected:", group_idxs)
+    # groups debug print suppressed
 
     # Which indices are selected for bulk resets?
     selected_reset_idxs = []
@@ -702,7 +702,7 @@ def symbolic_propagate_with_resets(
         name = instr.name.lower()
         qidxs = [_qidx(q) for q in qargs]
 
-        print(f"Processing gate {i}: {name} on qubits {qidxs}")
+        # per-gate debug print suppressed
 
         if name in ('id', 'reset'):
             continue
@@ -1130,7 +1130,8 @@ import os
 import shutil
 
 def uniqueness_build_goal(vars, at_most_t_faults, condition, gen_syn_z3,
-                          data_qubits, stab_txt_path, log_txt_path):
+                          data_qubits, stab_txt_path, log_txt_path,
+                          witness_mode: str = "type1"):
     # same construction as your uniqness_proof, but into a Goal
     E_x = [dq.x for dq in data_qubits]
     E_z = [dq.z for dq in data_qubits]
@@ -1178,6 +1179,23 @@ def uniqueness_build_goal(vars, at_most_t_faults, condition, gen_syn_z3,
 
     same_syn = And(*[x == y for x, y in zip(gen_syn_z3_1, gen_syn_z3_2)])
 
+    # Predicted syndromes from stabilizers for each of the two candidate errors.
+    stab_gens = load_symplectic_txt(stab_txt_path)
+    pred_syn_1 = stabilizer_syndrome_from_data(E_x_1, E_z_1, stab_gens)
+    pred_syn_2 = stabilizer_syndrome_from_data(E_x_2, E_z_2, stab_gens)
+    pred_syn_diff = Or(*[a != b for a, b in zip(pred_syn_1, pred_syn_2)]) if pred_syn_1 else BoolVal(False)
+
+    if witness_mode == "type1":
+        # Type 1: require E1*E2 to be outside stabilizer.
+        # pred_syn_diff implies this already, so we keep the direct condition.
+        witness_condition = condition_pauli_not_in_stab
+    elif witness_mode == "type2":
+        # Type 2: same gen_syn and E1*E2 logical operator.
+        # Syndrome consistency is enforced by 'condition' from caller.
+        witness_condition = condition_pauli_not_in_stab
+    else:
+        raise ValueError(f"Unknown witness_mode: {witness_mode}")
+
     g = Goal()
     g.add(same_syn)
     g.add(And(*condition_1))
@@ -1185,7 +1203,7 @@ def uniqueness_build_goal(vars, at_most_t_faults, condition, gen_syn_z3,
     g.add(at_most_t_faults_1)
     g.add(at_most_t_faults_2)
     g.add(condition_E_1_neq_E_2_formula)
-    g.add(condition_pauli_not_in_stab)
+    g.add(witness_condition)
     g.add(condition_E_1_not_in_stab)
     g.add(condition_E_2_not_in_stab)
     return g
@@ -1221,15 +1239,18 @@ def uniqueness_solve_with_cryptominisat(
     use_card2bv: bool = True,
     timeout_s: Optional[float] = None,
     keep_cnf_files: bool = True,
+    witness_mode: str = "type1",
+    verbose: bool = True,
 ):
     """
     Z3 -> CNF (DIMACS) -> CryptoMiniSat.
 
-    IMPORTANT (matches old caller contract):
-      returns (status, model_lits, solver_output)
+        IMPORTANT (matches caller contract):
+            returns (status, model_lits, solver_output, counterexample)
         status in {"sat","unsat","unknown"}
         model_lits: list[int] or None
         solver_output: str
+                counterexample: dict or None
 
     Semantics for this *uniqueness* check:
       - SAT   => counterexample exists (uniqueness FAIL)
@@ -1245,7 +1266,7 @@ def uniqueness_solve_with_cryptominisat(
     # 1) Build the Z3 goal
     g = uniqueness_build_goal(
         vars, at_most_t_faults, condition, gen_syn_z3,
-        data_qubits, stab_txt_path, log_txt_path
+        data_qubits, stab_txt_path, log_txt_path, witness_mode=witness_mode
     )
 
     # 2) Convert to CNF (possibly multiple subgoals)
@@ -1277,6 +1298,7 @@ def uniqueness_solve_with_cryptominisat(
 
     any_unknown = False
     collected_model_lits = None
+    counterexample = None
     total_solver_time_s = 0.0
     peak_solver_rss_bytes = None
 
@@ -1285,7 +1307,7 @@ def uniqueness_solve_with_cryptominisat(
         if peak_solver_rss_bytes is not None:
             summary_lines.append(f"[stats] peak_solver_rss_bytes={peak_solver_rss_bytes}")
         outputs.append("\n" + "\n".join(summary_lines) + "\n")
-        return status, model_lits, "".join(outputs)
+        return status, model_lits, "".join(outputs), counterexample
 
     for i, (cnf, vmap) in enumerate(zip(cnf_files, var_maps)):
         st, lits, out, elapsed_s, rss_bytes = run_cryptominisat(cnf, cms_exec, timeout_s=timeout_s, cms_extra_args=cms_extra_args)
@@ -1297,8 +1319,9 @@ def uniqueness_solve_with_cryptominisat(
         outputs.append(out)
 
         if st == "unsat":
-            print("UNSAT")
-            print("Success: uniqueness holds")
+            if verbose:
+                print("UNSAT")
+                print("Success: uniqueness holds")
             # whole conjunction UNSAT
             if not keep_cnf_files:
                 for p in cnf_files:
@@ -1314,12 +1337,18 @@ def uniqueness_solve_with_cryptominisat(
         if st == "sat" and lits:
             if collected_model_lits is None:
                 collected_model_lits = lits
+
+            # Keep a compact counterexample payload for the caller.
+            if counterexample is None:
+                p1, p2 = pretty_print_true_z3_vars(lits, vmap)
+                counterexample = {"p1": p1, "p2": p2}
                
 
        
-            p1, p2 = pretty_print_true_z3_vars(lits, vmap)
-            print("p1 true vars:", p1)
-            print("p2 true vars:", p2)
+            if verbose:
+                p1, p2 = counterexample["p1"], counterexample["p2"]
+                print("p1 true vars:", p1)
+                print("p2 true vars:", p2)
             # 5) Cleanup
             if not keep_cnf_files:
                 for p in cnf_files:
@@ -2071,6 +2100,243 @@ def eval_path_all_states(path, assignment, default_false=True):
             "state": eval_state_dict_with_values(st, assignment, default_false=default_false),
         })
     return out
+
+
+def evaluate_two_assignments_on_path(path, assignment_a, assignment_b, path_index=0, default_false=True):
+    """
+    Evaluate qubit-level Pauli results for two assignments on one selected path.
+
+    Returns a dict with per-step evaluated states and final Pauli strings for both cases.
+    """
+    if path is None or len(path) == 0:
+        raise ValueError("path is empty")
+    if path_index < 0 or path_index >= len(path):
+        raise IndexError(f"path_index out of range: {path_index}, valid 0..{len(path)-1}")
+
+    selected_path = path[path_index]
+
+    steps_a = eval_path_all_states(selected_path, assignment_a, default_false=default_false)
+    steps_b = eval_path_all_states(selected_path, assignment_b, default_false=default_false)
+
+    final_state_a = eval_state_dict_with_values(selected_path[-1]["state"], assignment_a, default_false=default_false)
+    final_state_b = eval_state_dict_with_values(selected_path[-1]["state"], assignment_b, default_false=default_false)
+
+    return {
+        "path_index": path_index,
+        "assignment_a": assignment_a,
+        "assignment_b": assignment_b,
+        "steps_a": steps_a,
+        "steps_b": steps_b,
+        "pauli_steps_a": [
+            {
+                "round": s.get("round"),
+                "node": s.get("node"),
+                "instruction": s.get("instruction"),
+                "pauli": qubits_to_pauli_string(s["state"]),
+            }
+            for s in steps_a
+        ],
+        "pauli_steps_b": [
+            {
+                "round": s.get("round"),
+                "node": s.get("node"),
+                "instruction": s.get("instruction"),
+                "pauli": qubits_to_pauli_string(s["state"]),
+            }
+            for s in steps_b
+        ],
+        "final_state_a": final_state_a,
+        "final_state_b": final_state_b,
+        "final_pauli_a": qubits_to_pauli_string(final_state_a),
+        "final_pauli_b": qubits_to_pauli_string(final_state_b),
+    }
+
+
+def _format_assignment(asgmt):
+    """Compact display: group by gate name, list affected fault bits."""
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for k in asgmt:
+        # e.g. r_0_faulty_gate14_z0  ->  gate=gate14, bit=z0
+        parts = k.split("_")
+        try:
+            gate_idx = next(i for i, p in enumerate(parts) if p.startswith("gate"))
+            gate = parts[gate_idx]
+            bit = "_".join(parts[gate_idx + 1:])
+            groups[gate].append(bit)
+        except StopIteration:
+            groups[k].append("True")
+    return "  ".join(f"{g}[{','.join(bits)}]" for g, bits in groups.items())
+
+
+def _fmt_pauli(p):
+    """Return non-empty Pauli fields as 'field:VALUE' pairs, '-' for empty registers."""
+    cols = []
+    for field in ("data", "ancX", "ancZ", "flagX", "flagZ"):
+        v = p.get(field, [])
+        if v and v != []:
+            cols.append(f"{field}:{v}")
+    return "  ".join(cols) if cols else "(trivial)"
+
+
+def print_two_assignment_path_report(path, assignment_a, assignment_b, path_index=0, default_false=True):
+    """
+    Convenience printer for notebook usage. Displays a compact side-by-side
+    per-round Pauli comparison table.
+    """
+    report = evaluate_two_assignments_on_path(
+        path,
+        assignment_a,
+        assignment_b,
+        path_index=path_index,
+        default_false=default_false,
+    )
+
+    W = 62
+    bar = "─" * W
+
+    print(f"╔{'═' * W}╗")
+    print(f"║  Path Index: {report['path_index']:<{W - 14}}║")
+    print(f"╚{'═' * W}╝")
+
+    print(f"\n  Fault A:  {_format_assignment(report['assignment_a'])}")
+    print(f"  Fault B:  {_format_assignment(report['assignment_b'])}")
+
+    steps_a = report["pauli_steps_a"]
+    steps_b = report["pauli_steps_b"]
+    n = max(len(steps_a), len(steps_b))
+
+    FIELDS = ("data", "ancX", "ancZ", "flagX", "flagZ")
+
+    for i in range(n):
+        sa = steps_a[i] if i < len(steps_a) else None
+        sb = steps_b[i] if i < len(steps_b) else None
+        node = (sa or sb)["node"]
+        instr = (sa or sb)["instruction"]
+        rnd = (sa or sb)["round"]
+
+        print(f"\n{bar}")
+        print(f"  Round {rnd}  |  {instr}  @  {node}")
+        print(bar)
+
+        # collect non-trivial fields across both steps
+        active_fields = [
+            f for f in FIELDS
+            if (sa and sa["pauli"].get(f) and sa["pauli"][f] != [])
+            or (sb and sb["pauli"].get(f) and sb["pauli"][f] != [])
+        ]
+
+        header_parts = ["     "] + [f"{f:<8}" for f in active_fields]
+        print("  " + "  ".join(header_parts))
+
+        for lbl, step in (("[A]", sa), ("[B]", sb)):
+            if step is None:
+                continue
+            p = step["pauli"]
+            vals = [p.get(f, []) or "-" for f in active_fields]
+            row_parts = [f"{lbl:<5}"] + [f"{str(v):<8}" for v in vals]
+            print("  " + "  ".join(row_parts))
+
+    fa = report["final_pauli_a"].get("data", "")
+    fb = report["final_pauli_b"].get("data", "")
+    same = (fa == fb)
+    verdict = "SAME" if same else "DIFFER  <-- inequivalent data errors"
+
+    print(f"\n{'═' * W}")
+    print(f"  FINAL DATA PAULI")
+    print(f"  [A]  {fa}")
+    print(f"  [B]  {fb}")
+    print(f"  {'✓' if same else '⚠'}  data: {verdict}")
+    print(f"{'═' * W}")
+
+    return report
+
+
+def evaluate_two_assignments_on_paths(paths, assignment_a, assignment_b, path_indices=None, default_false=True):
+    """
+    Evaluate two assignments on multiple paths.
+
+    Args:
+        paths: output of proof_protocol(...)
+        assignment_a, assignment_b: dict[str, bool]
+        path_indices: list[int] of target paths; if None, evaluate all paths.
+
+    Returns:
+        list of per-path reports from evaluate_two_assignments_on_path(...)
+    """
+    if paths is None or len(paths) == 0:
+        raise ValueError("paths is empty")
+
+    if path_indices is None:
+        path_indices = list(range(len(paths)))
+
+    reports = []
+    for idx in path_indices:
+        reports.append(
+            evaluate_two_assignments_on_path(
+                paths,
+                assignment_a,
+                assignment_b,
+                path_index=idx,
+                default_false=default_false,
+            )
+        )
+    return reports
+
+
+def print_two_assignments_on_paths_report(paths, assignment_a, assignment_b, path_indices=None, default_false=True):
+    """
+    Print round-by-round qubit Pauli results for two assignments across multiple paths.
+    Useful for inspecting failed path indices.
+    """
+    reports = evaluate_two_assignments_on_paths(
+        paths,
+        assignment_a,
+        assignment_b,
+        path_indices=path_indices,
+        default_false=default_false,
+    )
+
+    for rep in reports:
+        print("\n" + "=" * 72)
+        print(f"Path {rep['path_index']}")
+        print("=" * 72)
+
+        print("\n--- Assignment A ---")
+        print(rep["assignment_a"])
+        for s in rep["pauli_steps_a"]:
+            p = s["pauli"]
+            print(f"round={s['round']}, node={s['node']}, instr={s['instruction']}")
+            print(f"  data: {p.get('data', '')}")
+            if p.get("ancX", ""):
+                print(f"  ancX: {p['ancX']}")
+            if p.get("ancZ", ""):
+                print(f"  ancZ: {p['ancZ']}")
+            if p.get("flagX", []):
+                print(f"  flagX: {p['flagX']}")
+            if p.get("flagZ", []):
+                print(f"  flagZ: {p['flagZ']}")
+
+        print("\n--- Assignment B ---")
+        print(rep["assignment_b"])
+        for s in rep["pauli_steps_b"]:
+            p = s["pauli"]
+            print(f"round={s['round']}, node={s['node']}, instr={s['instruction']}")
+            print(f"  data: {p.get('data', '')}")
+            if p.get("ancX", ""):
+                print(f"  ancX: {p['ancX']}")
+            if p.get("ancZ", ""):
+                print(f"  ancZ: {p['ancZ']}")
+            if p.get("flagX", []):
+                print(f"  flagX: {p['flagX']}")
+            if p.get("flagZ", []):
+                print(f"  flagZ: {p['flagZ']}")
+
+        print("\nFinal A:", rep["final_pauli_a"])
+        print("Final B:", rep["final_pauli_b"])
+        print("Same final data:", rep["final_pauli_a"].get("data", "") == rep["final_pauli_b"].get("data", ""))
+
+    return reports
 # ---------------------------
 # prove for eacg stage
 # ---------------------------
@@ -2078,15 +2344,7 @@ def prove_syndrome_extractions(qasm_path: str, stab_txt_path: str):
     state, qc, varenv = build_variable_state_from_qasm(qasm_path)
     groups = detect_qubit_groups(qc)
 
-    print("Built state:", state)
-    print("All qubits in state:")
-    for i, q in enumerate(state.qubits):
-        print(f"  qubit {i}: {q}")
-
-    print("Data qubits indices:", groups["data"])
-    print("Data qubits state:", [state.qubits[i] for i in groups["data"]])
-    print("AncX qubits indices:", groups["ancX"])
-    print("AncX qubits state:", [state.qubits[i] for i in groups["ancX"]])
+    # Detailed symbolic state dump suppressed
 
     data_exprs = data_qubits(state, groups["data"])  # list of (x,z) pairs for data qubits
     
@@ -2130,8 +2388,7 @@ def prove_syndrome_extractions(qasm_path: str, stab_txt_path: str):
     # Get Boolean formulas
     stab_exprs = [anticomm_formula(Sx, Sz, varenv) for Sx,Sz in stabs]
 
-    for i, e in enumerate(stab_exprs):
-        print(f"Stabilizer {i} formula:", e)
+    # Stabilizer formula debug print suppressed
 
     report = check_ancillas_match_symplectic_ordered(
     qasm_path,
@@ -2268,10 +2525,7 @@ def check_flag_raised(qasm_path: str, stab_txt_path: str,num_gates: int, bad_loc
     
     
     state, qc, sites_info, groups = build_state_with_faults_after_gates(qasm_path ,bad_locations_dict, fault_mode="2q")    
-    print("Built state (check_flag_raised):", state)
-    print("All qubits in state (check_flag_raised):")
-    for i, q in enumerate(state.qubits):
-        print(f"  qubit {i}: {q}")
+    # Detailed symbolic state dump suppressed
     #print(sites_info)
 
     data_idxs = groups["data"]

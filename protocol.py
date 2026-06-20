@@ -192,6 +192,23 @@ def read_path_steps(nodes: dict, path: list):
 
         steps.append((nid, node.instructions, cond_to_next))
     return steps
+
+
+def classify_terminal_path(instruction: Optional[str]) -> int:
+    """
+    Classify a terminal path from its final instruction.
+
+    Rules:
+      Type 0 -> Break
+      Type 2 -> raw_syndrome
+      Type 1 -> anything else
+    """
+    normalized = (instruction or "").strip().lower()
+    if normalized == "break":
+        return 0
+    if normalized in ("raw_syndrome", "raw-syndrome"):
+        return 2
+    return 1
 # ---- top-level loader ----
 
 def load_protocol(path: str):
