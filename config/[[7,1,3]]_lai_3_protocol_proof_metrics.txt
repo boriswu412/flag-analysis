@@ -1,0 +1,7 @@
+================================================================================
+Total number of paths: 2
+Per-path SAT metrics:
+  path_idx | type | status | gate_count | runtime_s | total_clauses | sat_query_count
+        0 |    0 | skipped |         36 |  0.000000 |             0 |               0
+        1 |    1 | unsat   |         60 |  0.064159 |             0 |               1
+================================================================================

@@ -198,17 +198,17 @@ def classify_terminal_path(instruction: Optional[str]) -> int:
     """
     Classify a terminal path from its final instruction.
 
-    Rules:
-      Type 0 -> Break
-      Type 2 -> raw_syndrome
-      Type 1 -> anything else
+        Rules:
+            Type 0 -> Break (or missing)
+                        Type 1 -> terminal instruction contains "raw"
+                        Type 2 -> anything else
     """
     normalized = (instruction or "").strip().lower()
-    if normalized == "break":
+    if normalized in ("", "break"):
         return 0
-    if normalized in ("raw_syndrome", "raw-syndrome"):
-        return 2
-    return 1
+    if "raw" in normalized:
+        return 1
+    return 2
 # ---- top-level loader ----
 
 def load_protocol(path: str):

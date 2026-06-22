@@ -46,6 +46,10 @@ def read_config(path="config.txt"):
 
             config[key] = value
 
+            # Preserve origin so downstream reporting can save artifacts next to this config.
+            config["__config_path__"] = str(config_file)
+            config["__config_dir__"] = str(config_file.parent)
+
     return config
 
 

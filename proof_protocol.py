@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Tuple, Dict, Optional
 from pathlib  import Path
 
@@ -30,6 +31,43 @@ class PathRecord:
     state: Dict[str, List[Any]]        # final symbolic state {"data":..., "ancX":..., ...}
 
 
+def classify_full_path(path_steps: List[Dict[str, Any]]) -> int:
+    """
+    Classify a full traversed path.
+
+    Rules:
+        Type 0 -> effective terminal instruction is Break (or missing)
+        Type 1 -> effective terminal instruction contains "raw"
+        Type 2 -> all other verified terminal paths
+
+    Note:
+        If a path ends with LUT instruction(s), classification uses the instruction
+        immediately before the trailing LUT suffix.
+    """
+    idx = len(path_steps) - 1
+    while idx >= 0:
+        instr = (path_steps[idx].get("instruction") or "").strip()
+        if not instr:
+            idx -= 1
+            continue
+        if instr.startswith("LUT_"):
+            idx -= 1
+            continue
+        break
+
+    terminal_norm = ""
+    if idx >= 0:
+        terminal_norm = (path_steps[idx].get("instruction") or "").strip().lower()
+
+    if terminal_norm in ("", "break"):
+        return 0
+
+    if "raw" in terminal_norm:
+        return 1
+
+    return 2
+
+
 from copy import deepcopy
 
 from typing import List, Dict, Any
@@ -50,6 +88,24 @@ def proof_protocol(protocol,
                   t: int):
 
     all_paths = []
+    path_query_stats: List[Dict[str, Any]] = []
+
+    def _count_path_gates_excluding_barrier(path_steps: List[Dict[str, Any]], cfg: Dict[str, Any]) -> int:
+        gate_count = 0
+        for step in path_steps:
+            instr = step.get("instruction")
+            if not instr:
+                continue
+            if instr not in cfg:
+                continue
+            qasm_path = cfg[instr]
+            try:
+                qc = load_qasm(qasm_path)
+                gate_count += len(get_gate_only_indices(qc))
+            except Exception:
+                # If a path step cannot be loaded as QASM, ignore it for gate counting.
+                continue
+        return gate_count
 
     def dfs(round_idx: int,
             node_id: str,
@@ -57,7 +113,7 @@ def proof_protocol(protocol,
             cur_groups,         # dict or None
             cur_path: List[Dict]):
         
-        #if len(all_paths) == 2 :  return  # stop exploring more branches
+        #if len(all_paths) == 3 :  return  # stop exploring more branches
 
         node = protocol[node_id]
 
@@ -138,12 +194,24 @@ def proof_protocol(protocol,
             full_path = cur_path + [step]
             
             all_paths.append(full_path)
+            path_idx = len(all_paths) - 1
+            path_gate_count = _count_path_gates_excluding_barrier(full_path, config)
            
             # Leaf behavior
-            path_type = classify_terminal_path(instr)
+            path_type = classify_full_path(full_path)
 
             if path_type == 0:
                 # Type 0: Break path, skip verification.
+                path_query_stats.append({
+                    "path_index": path_idx,
+                    "path_type": path_type,
+                    "status": "skipped",
+                    "gate_count": path_gate_count,
+                    "solver_runtime_seconds": 0.0,
+                    "peak_solver_rss_bytes": 0,
+                    "total_clauses": 0,
+                    "sat_query_count": 0,
+                })
                 return
 
             # Resolve generalized-syndrome selector from LUT instruction.
@@ -178,23 +246,65 @@ def proof_protocol(protocol,
                 ])
                 all_condition = all_condition + [syn_constraint]
 
-                status, counterexample = proof_path(full_path, t, gen_syn, all_condition, config['stab_txt_path'], config['log_txt_path'], verify_mode="type2")
-                print(f"Path {len(all_paths) - 1}: Type 2 -> {status.upper()}")
+                status, counterexample, query_stats = proof_path(
+                    full_path,
+                    t,
+                    gen_syn,
+                    all_condition,
+                    config['stab_txt_path'],
+                    config['log_txt_path'],
+                    verify_mode="type2",
+                    query_tag=f"path_{path_idx}",
+                )
+                print(f"Path {path_idx}: Type 2 -> {status.upper()}")
                 if status == "sat" and counterexample is not None:
                     print(f"  Counterexample p1: {counterexample.get('p1', {})}")
                     print(f"  Counterexample p2: {counterexample.get('p2', {})}")
+                path_query_stats.append({
+                    "path_index": path_idx,
+                    "path_type": path_type,
+                    "status": status,
+                    "gate_count": path_gate_count,
+                    **query_stats,
+                })
                 return
 
             # Type 1 verification: requires generalized syndrome selector from LUT.
             if instr and instr.startswith("LUT_"):
-                status, counterexample = proof_path(full_path, t, gen_syn, all_condition, config['stab_txt_path'], config['log_txt_path'], verify_mode="type1")
-                print(f"Path {len(all_paths) - 1}: Type 1 -> {status.upper()}")
+                status, counterexample, query_stats = proof_path(
+                    full_path,
+                    t,
+                    gen_syn,
+                    all_condition,
+                    config['stab_txt_path'],
+                    config['log_txt_path'],
+                    verify_mode="type1",
+                    query_tag=f"path_{path_idx}",
+                )
+                print(f"Path {path_idx}: Type 1 -> {status.upper()}")
                 if status == "sat" and counterexample is not None:
                     print(f"  Counterexample p1: {counterexample.get('p1', {})}")
                     print(f"  Counterexample p2: {counterexample.get('p2', {})}")
+                path_query_stats.append({
+                    "path_index": path_idx,
+                    "path_type": path_type,
+                    "status": status,
+                    "gate_count": path_gate_count,
+                    **query_stats,
+                })
                 return
 
             # Type 1 without LUT selector is currently not verified.
+            path_query_stats.append({
+                "path_index": path_idx,
+                "path_type": path_type,
+                "status": "not_verified",
+                "gate_count": path_gate_count,
+                "solver_runtime_seconds": 0.0,
+                "peak_solver_rss_bytes": 0,
+                "total_clauses": 0,
+                "sat_query_count": 0,
+            })
             return
 
         # -------------------------------
@@ -232,6 +342,55 @@ def proof_protocol(protocol,
 
     
     dfs(0, start_node, init_state, None, [])
+
+    def _resolve_metrics_report_path(cfg: Dict[str, Any]) -> Path:
+        cfg_dir = cfg.get("__config_dir__")
+        if cfg_dir:
+            base_dir = Path(cfg_dir)
+        else:
+            stab_path = cfg.get("stab_txt_path")
+            base_dir = Path(stab_path).parent if stab_path else Path.cwd()
+
+        cfg_path = cfg.get("__config_path__")
+        if cfg_path:
+            stem = Path(cfg_path).stem
+            file_name = f"{stem}_proof_metrics.txt"
+        else:
+            file_name = "proof_protocol_metrics.txt"
+
+        return base_dir / file_name
+
+    report_lines: List[str] = []
+    report_lines.append("=" * 80)
+    report_lines.append(f"Total number of paths: {len(all_paths)}")
+    report_lines.append("Per-path SAT metrics:")
+    report_lines.append("  path_idx | type | status | gate_count | runtime_s | peak_rss_mb | total_clauses | sat_query_count")
+    for row in sorted(path_query_stats, key=lambda r: r["path_index"]):
+        peak_rss_bytes = row.get("peak_solver_rss_bytes", 0) or 0
+        peak_rss_mb = peak_rss_bytes / (1024 * 1024)
+        report_lines.append(
+            "  "
+            f"{row['path_index']:>7} | "
+            f"{row['path_type']:>4} | "
+            f"{row['status']:<7} | "
+            f"{row.get('gate_count', 0):>10} | "
+            f"{row.get('solver_runtime_seconds', 0.0):>9.6f} | "
+            f"{peak_rss_mb:>11.3f} | "
+            f"{row.get('total_clauses', 0):>13} | "
+            f"{row.get('sat_query_count', 0):>15}"
+        )
+    report_lines.append("=" * 80)
+
+    report_path = _resolve_metrics_report_path(config)
+    try:
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text("\n".join(report_lines) + "\n")
+    except OSError as e:
+        print(f"Warning: failed to write metrics report: {e}")
+
+    print("\n" + "\n".join(report_lines))
+    print(f"Metrics report saved to: {report_path}")
+
     return all_paths
 
 
@@ -400,7 +559,7 @@ def proof_protocol_boolean(protocol,
             
             # Store collected data
             faults = [info["act"] for step in full_path for info in step["site_info"]]
-            at_most_t_faults = PbEq([(f, 1) for f in faults], t) if faults else BoolVal(True)
+            at_most_t_faults = PbLe([(f, 1) for f in faults], t) if faults else BoolVal(True)
             path_data = {
                 "last_data": last_data,
                 "anc_flag_per_round": anc_flag_per_round,
@@ -411,7 +570,7 @@ def proof_protocol_boolean(protocol,
                 "faults": faults,
                 "at_most_t_faults": at_most_t_faults,
                 "terminal_instruction": instr,
-                "path_type": classify_terminal_path(instr)
+                "path_type": classify_full_path(full_path)
             }
             all_path_data.append(path_data)
            
@@ -493,7 +652,7 @@ def proof_protocol_boolean(protocol,
         for f_idx, f in enumerate(path_data["faults"]):
             print(f"   f[{f_idx}]: {f}")
         
-        print(f"\n   At-most-{t}-faults constraint (PbEq):")
+        print(f"\n   At-most-{t}-faults constraint (PbLe):")
         print(f"   {path_data['at_most_t_faults']}")
         
         # Print last round data qubits
@@ -808,7 +967,59 @@ def condition_to_z3(cond: dict | None, full_state: dict, groups:Dict) -> Bool:
         return L == R
 
 
-def proof_path(path : list[dict], t : int , gen_syn : list ,all_condtion : list, stab_txt_path: str,  log_txt_path: str, verify_mode: str = "type1") :
+def _parse_total_clauses_for_query(query_tag: str) -> int:
+    total_clauses = 0
+    idx = 0
+    while True:
+        cnf_path = Path(f"{query_tag}_sub{idx}.cnf")
+        if not cnf_path.exists():
+            break
+        try:
+            with cnf_path.open("r") as f:
+                for line in f:
+                    if line.startswith("p cnf "):
+                        parts = line.split()
+                        if len(parts) >= 4:
+                            total_clauses += int(parts[3])
+                        break
+        except (OSError, ValueError):
+            pass
+        idx += 1
+    return total_clauses
+
+
+def _parse_solver_metrics(out_text: str, query_tag: str) -> Dict[str, Any]:
+    runtime_s = 0.0
+    peak_solver_rss_bytes = 0
+    sat_query_count = 0
+    for line in out_text.splitlines():
+        if line.startswith("[stats] total_solver_time_seconds="):
+            try:
+                runtime_s = float(line.split("=", 1)[1].strip())
+            except ValueError:
+                runtime_s = 0.0
+        elif line.startswith("[stats] peak_solver_rss_bytes="):
+            try:
+                peak_solver_rss_bytes = int(line.split("=", 1)[1].strip())
+            except ValueError:
+                peak_solver_rss_bytes = 0
+        elif line.startswith("[info] num_subgoals="):
+            # Format example: [info] num_subgoals=3 use_card2bv=True timeout_s=None
+            try:
+                sat_query_count = int(line.split("num_subgoals=", 1)[1].split()[0])
+            except (IndexError, ValueError):
+                sat_query_count = 0
+
+    total_clauses = _parse_total_clauses_for_query(query_tag)
+    return {
+        "solver_runtime_seconds": runtime_s,
+        "peak_solver_rss_bytes": peak_solver_rss_bytes,
+        "total_clauses": total_clauses,
+        "sat_query_count": sat_query_count,
+    }
+
+
+def proof_path(path : list[dict], t : int , gen_syn : list ,all_condtion : list, stab_txt_path: str,  log_txt_path: str, verify_mode: str = "type1", query_tag: str = "uniq") :
     """
     Given a path (list of steps with conditions and states), build a z3 formula
     that encodes the conditions along the path.
@@ -849,7 +1060,7 @@ def proof_path(path : list[dict], t : int , gen_syn : list ,all_condtion : list,
 
     
     #    print("gen_syn_z3:", gen_syn_z3)
-    at_most_t_faults = [PbEq( [(f,1) for f in faults ], t)]
+    at_most_t_faults = [PbLe([(f, 1) for f in faults], t)] if faults else [BoolVal(True)]
 
     
 
@@ -868,11 +1079,14 @@ def proof_path(path : list[dict], t : int , gen_syn : list ,all_condtion : list,
         path[-1]["state"]["data"],
         stab_txt_path,
         log_txt_path,
+        out_cnf=f"{query_tag}.cnf",
         witness_mode=verify_mode,
         verbose=False,
+        keep_cnf_files=False,
     )
 
-    return status, counterexample
+    query_stats = _parse_solver_metrics(out, query_tag)
+    return status, counterexample, query_stats
     
     # Add fault constraints if needed
     
