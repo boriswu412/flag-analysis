@@ -432,7 +432,7 @@ def proof_protocol(protocol,
     print("\n" + "\n".join(report_lines))
     print(f"Metrics report saved to: {report_path}")
 
-    return all_paths
+    return all_paths, path_query_stats
 
 
 

@@ -84,3 +84,32 @@ faulty_gate14_x0_p1 = True
 ```
 Gates 19 (`cx [8,1]`) YZ error  and 14 (`cx [7,2]`) XZ error: these faults yield identical generalized syndromes, violating uniqueness.
 
+---
+
+## Server: proof_protocol
+
+Run multi-path protocol verification on a Linux server without Jupyter.
+
+### One-time setup (Ubuntu/Debian)
+
+```bash
+bash scripts/setup_server.sh
+source venv/bin/activate
+```
+
+This installs Python dependencies from `requirements.txt` and the system package `cryptominisat` (provides `cryptominisat5`, required for SAT solving).
+
+### Run verification
+
+```bash
+python run_proof_protocol.py \
+  --protocol ./protocols/d_3_lai_protocol.json \
+  --config   ./[[5,1,3]]_[2,2]_T_fix/[[5,1,3]]_[2,2]_T_fix_lai_3_protocol_config.txt \
+  --t 1
+```
+
+**Exit codes:**
+- `0` — all verified paths are UNSAT (proof holds)
+- `1` — at least one path is SAT (counterexample) or a runtime error occurred
+
+**Metrics:** written to `{config_stem}_proof_metrics.txt` next to the config file (e.g. `[[5,1,3]]_[2,2]_T_fix_lai_3_protocol_config_proof_metrics.txt`).
