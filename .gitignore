@@ -2,6 +2,15 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Virtual environments
+venv/
+.venv/
+
+# SAT solver artifacts
+*.cnf
+
+# OS
+.DS_Store
 
 *.ipynb
 !boolean_learning.ipynb
