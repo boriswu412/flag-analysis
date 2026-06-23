@@ -8,6 +8,12 @@ from typing import List, Tuple, Dict, Optional
 from pathlib  import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+_QUIET = False
+
+
+def set_quiet(quiet: bool) -> None:
+    global _QUIET
+    _QUIET = quiet
 
 
 def _resolve_project_path(path: str | Path) -> Path:
@@ -835,7 +841,8 @@ def symbolic_execution_of_state(qasm_path: str,
     for i, (instr, qargs, _) in enumerate(qc.data):
         name = instr.name
         qidxs = [_qiskit_qubit_index(qc, q) for q in qargs]
-        print("index:", i, "name:", name, "qidxs:", qidxs)
+        if not _QUIET:
+            print("index:", i, "name:", name, "qidxs:", qidxs)
        # print(f"Processing gate {i}: {name} on qubits {qidxs}")
         if name in ("h","s","sdg"):
             apply_qasm_gate_into_state(state, name, qidxs)

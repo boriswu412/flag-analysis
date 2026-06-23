@@ -95,6 +95,7 @@ def proof_protocol(protocol,
                   config: Dict,
                   t: int):
 
+    quiet = bool(config.get("__quiet__", False))
     all_paths = []
     path_query_stats: List[Dict[str, Any]] = []
 
@@ -265,10 +266,11 @@ def proof_protocol(protocol,
                     verify_mode="type2",
                     query_tag=f"path_{path_idx}",
                 )
-                print(f"Path {path_idx}: Type 2 -> {status.upper()}")
-                if status == "sat" and counterexample is not None:
-                    print(f"  Counterexample p1: {counterexample.get('p1', {})}")
-                    print(f"  Counterexample p2: {counterexample.get('p2', {})}")
+                if not quiet:
+                    print(f"Path {path_idx}: Type 2 -> {status.upper()}")
+                    if status == "sat" and counterexample is not None:
+                        print(f"  Counterexample p1: {counterexample.get('p1', {})}")
+                        print(f"  Counterexample p2: {counterexample.get('p2', {})}")
                 path_query_stats.append({
                     "path_index": path_idx,
                     "path_type": path_type,
@@ -291,10 +293,11 @@ def proof_protocol(protocol,
                     verify_mode="type1",
                     query_tag=f"path_{path_idx}",
                 )
-                print(f"Path {path_idx}: Type 1 -> {status.upper()}")
-                if status == "sat" and counterexample is not None:
-                    print(f"  Counterexample p1: {counterexample.get('p1', {})}")
-                    print(f"  Counterexample p2: {counterexample.get('p2', {})}")
+                if not quiet:
+                    print(f"Path {path_idx}: Type 1 -> {status.upper()}")
+                    if status == "sat" and counterexample is not None:
+                        print(f"  Counterexample p1: {counterexample.get('p1', {})}")
+                        print(f"  Counterexample p2: {counterexample.get('p2', {})}")
                 path_query_stats.append({
                     "path_index": path_idx,
                     "path_type": path_type,
@@ -356,9 +359,11 @@ def proof_protocol(protocol,
     dfs(0, start_node, init_state, None, [])
 
     def _resolve_metrics_report_path(cfg: Dict[str, Any]) -> Path:
-        cfg_dir = cfg.get("__config_dir__")
-        if cfg_dir:
-            base_dir = Path(cfg_dir)
+        metrics_dir = cfg.get("metrics_dir")
+        if metrics_dir:
+            base_dir = Path(metrics_dir)
+        elif cfg.get("__config_dir__"):
+            base_dir = Path(cfg["__config_dir__"])
         else:
             stab_path = cfg.get("stab_txt_path")
             base_dir = Path(stab_path).parent if stab_path else Path.cwd()
@@ -374,6 +379,7 @@ def proof_protocol(protocol,
 
     report_lines: List[str] = []
     report_lines.append("=" * 80)
+    report_lines.append(f"Max faults per path (t): {t}")
     report_lines.append(f"Total number of paths: {len(all_paths)}")
     report_lines.append("Per-path SAT metrics:")
     report_lines.append("  path_idx | type | last_instr              | status | gate_count | runtime_s | peak_rss_mb | fault_vars | dimacs_vars | total_clauses | sat_query_count")
@@ -429,8 +435,9 @@ def proof_protocol(protocol,
     except OSError as e:
         print(f"Warning: failed to write metrics report: {e}")
 
-    print("\n" + "\n".join(report_lines))
-    print(f"Metrics report saved to: {report_path}")
+    if not quiet:
+        print("\n" + "\n".join(report_lines))
+        print(f"Metrics report saved to: {report_path}")
 
     return all_paths, path_query_stats
 
