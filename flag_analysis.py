@@ -7,6 +7,19 @@ from dataclasses import dataclass
 from typing import List, Tuple, Dict, Optional
 from pathlib  import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parent
+
+
+def _resolve_project_path(path: str | Path) -> Path:
+    """Resolve a relative path from cwd or the project root."""
+    p = Path(path)
+    if p.is_absolute():
+        return p.resolve()
+    for candidate in (Path.cwd() / p, PROJECT_ROOT / p):
+        if candidate.exists():
+            return candidate.resolve()
+    return (PROJECT_ROOT / p).resolve()
+
 
 from dimacs_bridge import build_dimacs, resolve_cryptominisat_binary, run_cryptominisat, model_to_z3_assignment, pretty_print_z3_assignment, pretty_print_true_z3_vars
 
@@ -23,11 +36,31 @@ from z3 import Solver, unsat, sat, unknown
 import ast
 from pathlib import Path
 
-def read_config(path="config.txt"):
-    config_file = Path(path)
-    if not config_file.exists():
-        raise FileNotFoundError("Missing config.txt file!")
+def _looks_like_path(value: str) -> bool:
+    if not isinstance(value, str):
+        return False
+    return (
+        value.endswith((".qasm", ".txt", ".json", ".cnf"))
+        or "/" in value
+        or "\\" in value
+    )
 
+
+def _resolve_config_path(value, base_dir: Path):
+    if isinstance(value, str) and _looks_like_path(value):
+        p = Path(value)
+        if not p.is_absolute():
+            p = (base_dir / p).resolve()
+        return str(p)
+    return value
+
+
+def read_config(path="config.txt"):
+    config_file = _resolve_project_path(path)
+    if not config_file.exists():
+        raise FileNotFoundError(f"Missing config file: {path}")
+
+    config_dir = config_file.parent
     config = {}
     for line in config_file.read_text().splitlines():
         line = line.strip()
@@ -44,11 +77,12 @@ def read_config(path="config.txt"):
             except Exception:
                 pass  # keep as string
 
+            value = _resolve_config_path(value, config_dir)
             config[key] = value
 
             # Preserve origin so downstream reporting can save artifacts next to this config.
             config["__config_path__"] = str(config_file)
-            config["__config_dir__"] = str(config_file.parent)
+            config["__config_dir__"] = str(config_dir)
 
     return config
 
@@ -1291,6 +1325,21 @@ def uniqueness_solve_with_cryptominisat(
         renamed.append(p)
     cnf_files = renamed
 
+    total_clauses = 0
+    total_dimacs_vars = 0
+    for cnf in cnf_files:
+        try:
+            with open(cnf, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("p cnf "):
+                        parts = line.split()
+                        if len(parts) >= 4:
+                            total_dimacs_vars += int(parts[2])
+                            total_clauses += int(parts[3])
+                        break
+        except (OSError, ValueError):
+            pass
+
     # 3) Find CryptoMiniSat
     cms_exec = resolve_cryptominisat_binary(cms_bin)
 
@@ -1308,6 +1357,8 @@ def uniqueness_solve_with_cryptominisat(
 
     def finalize(status: str, model_lits):
         summary_lines = [f"[stats] total_solver_time_seconds={total_solver_time_s:.6f}"]
+        summary_lines.append(f"[stats] total_clauses={total_clauses}")
+        summary_lines.append(f"[stats] total_dimacs_vars={total_dimacs_vars}")
         if peak_solver_rss_bytes is not None:
             summary_lines.append(f"[stats] peak_solver_rss_bytes={peak_solver_rss_bytes}")
         outputs.append("\n" + "\n".join(summary_lines) + "\n")

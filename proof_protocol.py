@@ -31,9 +31,12 @@ class PathRecord:
     state: Dict[str, List[Any]]        # final symbolic state {"data":..., "ancX":..., ...}
 
 
-def classify_full_path(path_steps: List[Dict[str, Any]]) -> int:
+def classify_full_path(path_steps: List[Dict[str, Any]]) -> Tuple[int, str]:
     """
     Classify a full traversed path.
+
+    Returns:
+        (path_type, last_instr) where last_instr is "{name} (raw)" or "{name} (other)".
 
     Rules:
         Type 0 -> effective terminal instruction is Break (or missing)
@@ -55,17 +58,22 @@ def classify_full_path(path_steps: List[Dict[str, Any]]) -> int:
             continue
         break
 
-    terminal_norm = ""
+    effective_terminal = ""
     if idx >= 0:
-        terminal_norm = (path_steps[idx].get("instruction") or "").strip().lower()
+        effective_terminal = (path_steps[idx].get("instruction") or "").strip()
+
+    terminal_norm = effective_terminal.lower()
+    name = effective_terminal or "Break"
+    kind = "raw" if "raw" in terminal_norm else "other"
+    last_instr = f"{name} ({kind})"
 
     if terminal_norm in ("", "break"):
-        return 0
+        return 0, last_instr
 
     if "raw" in terminal_norm:
-        return 1
+        return 1, last_instr
 
-    return 2
+    return 2, last_instr
 
 
 from copy import deepcopy
@@ -198,13 +206,14 @@ def proof_protocol(protocol,
             path_gate_count = _count_path_gates_excluding_barrier(full_path, config)
            
             # Leaf behavior
-            path_type = classify_full_path(full_path)
+            path_type, last_instr = classify_full_path(full_path)
 
             if path_type == 0:
                 # Type 0: Break path, skip verification.
                 path_query_stats.append({
                     "path_index": path_idx,
                     "path_type": path_type,
+                    "last_instr": last_instr,
                     "status": "skipped",
                     "gate_count": path_gate_count,
                     "solver_runtime_seconds": 0.0,
@@ -263,6 +272,7 @@ def proof_protocol(protocol,
                 path_query_stats.append({
                     "path_index": path_idx,
                     "path_type": path_type,
+                    "last_instr": last_instr,
                     "status": status,
                     "gate_count": path_gate_count,
                     **query_stats,
@@ -288,6 +298,7 @@ def proof_protocol(protocol,
                 path_query_stats.append({
                     "path_index": path_idx,
                     "path_type": path_type,
+                    "last_instr": last_instr,
                     "status": status,
                     "gate_count": path_gate_count,
                     **query_stats,
@@ -298,6 +309,7 @@ def proof_protocol(protocol,
             path_query_stats.append({
                 "path_index": path_idx,
                 "path_type": path_type,
+                "last_instr": last_instr,
                 "status": "not_verified",
                 "gate_count": path_gate_count,
                 "solver_runtime_seconds": 0.0,
@@ -364,7 +376,7 @@ def proof_protocol(protocol,
     report_lines.append("=" * 80)
     report_lines.append(f"Total number of paths: {len(all_paths)}")
     report_lines.append("Per-path SAT metrics:")
-    report_lines.append("  path_idx | type | status | gate_count | runtime_s | peak_rss_mb | total_clauses | sat_query_count")
+    report_lines.append("  path_idx | type | last_instr              | status | gate_count | runtime_s | peak_rss_mb | fault_vars | dimacs_vars | total_clauses | sat_query_count")
     for row in sorted(path_query_stats, key=lambda r: r["path_index"]):
         peak_rss_bytes = row.get("peak_solver_rss_bytes", 0) or 0
         peak_rss_mb = peak_rss_bytes / (1024 * 1024)
@@ -372,13 +384,42 @@ def proof_protocol(protocol,
             "  "
             f"{row['path_index']:>7} | "
             f"{row['path_type']:>4} | "
+            f"{row.get('last_instr', ''):<23} | "
             f"{row['status']:<7} | "
             f"{row.get('gate_count', 0):>10} | "
             f"{row.get('solver_runtime_seconds', 0.0):>9.6f} | "
             f"{peak_rss_mb:>11.3f} | "
+            f"{row.get('num_fault_vars', 0):>10} | "
+            f"{row.get('total_dimacs_vars', 0):>11} | "
             f"{row.get('total_clauses', 0):>13} | "
             f"{row.get('sat_query_count', 0):>15}"
         )
+    total_runtime_s = sum(
+        row.get("solver_runtime_seconds", 0.0) or 0.0
+        for row in path_query_stats
+    )
+    total_sat_paths = sum(
+        1 for row in path_query_stats if row.get("status") == "sat"
+    )
+    total_paths = len(path_query_stats)
+    max_fault_vars = max(
+        (row.get("num_fault_vars", 0) or 0 for row in path_query_stats),
+        default=0,
+    )
+    max_dimacs_vars = max(
+        (row.get("total_dimacs_vars", 0) or 0 for row in path_query_stats),
+        default=0,
+    )
+    max_peak_rss_bytes = max(
+        (row.get("peak_solver_rss_bytes", 0) or 0 for row in path_query_stats),
+        default=0,
+    )
+    max_peak_rss_mb = max_peak_rss_bytes / (1024 * 1024)
+    report_lines.append(f"Total runtime (sum of all paths): {total_runtime_s:.6f} s")
+    report_lines.append(f"Total SAT paths: {total_sat_paths}/{total_paths}")
+    report_lines.append(f"Max fault variables (across paths): {max_fault_vars}")
+    report_lines.append(f"Max DIMACS variables (across paths): {max_dimacs_vars}")
+    report_lines.append(f"Max peak RSS (across paths): {max_peak_rss_mb:.3f} MB")
     report_lines.append("=" * 80)
 
     report_path = _resolve_metrics_report_path(config)
@@ -560,6 +601,7 @@ def proof_protocol_boolean(protocol,
             # Store collected data
             faults = [info["act"] for step in full_path for info in step["site_info"]]
             at_most_t_faults = PbLe([(f, 1) for f in faults], t) if faults else BoolVal(True)
+            path_type, last_instr = classify_full_path(full_path)
             path_data = {
                 "last_data": last_data,
                 "anc_flag_per_round": anc_flag_per_round,
@@ -570,7 +612,8 @@ def proof_protocol_boolean(protocol,
                 "faults": faults,
                 "at_most_t_faults": at_most_t_faults,
                 "terminal_instruction": instr,
-                "path_type": classify_full_path(full_path)
+                "path_type": path_type,
+                "last_instr": last_instr,
             }
             all_path_data.append(path_data)
            
@@ -642,6 +685,7 @@ def proof_protocol_boolean(protocol,
         type_counts[path_type] = type_counts.get(path_type, 0) + 1
         print(f"\n--- PATH {i} ---")
         print(f"Path type: Type {path_type}")
+        print(f"Last instruction: {path_data.get('last_instr', '')}")
         print(f"\nMeasured syndrome:")
         print(f"   {path_data['syn_measured']}")
         print(f"\nCommutation syndrome:")
@@ -992,12 +1036,24 @@ def _parse_solver_metrics(out_text: str, query_tag: str) -> Dict[str, Any]:
     runtime_s = 0.0
     peak_solver_rss_bytes = 0
     sat_query_count = 0
+    total_clauses = 0
+    total_dimacs_vars = 0
     for line in out_text.splitlines():
         if line.startswith("[stats] total_solver_time_seconds="):
             try:
                 runtime_s = float(line.split("=", 1)[1].strip())
             except ValueError:
                 runtime_s = 0.0
+        elif line.startswith("[stats] total_clauses="):
+            try:
+                total_clauses = int(line.split("=", 1)[1].strip())
+            except ValueError:
+                total_clauses = 0
+        elif line.startswith("[stats] total_dimacs_vars="):
+            try:
+                total_dimacs_vars = int(line.split("=", 1)[1].strip())
+            except ValueError:
+                total_dimacs_vars = 0
         elif line.startswith("[stats] peak_solver_rss_bytes="):
             try:
                 peak_solver_rss_bytes = int(line.split("=", 1)[1].strip())
@@ -1010,11 +1066,13 @@ def _parse_solver_metrics(out_text: str, query_tag: str) -> Dict[str, Any]:
             except (IndexError, ValueError):
                 sat_query_count = 0
 
-    total_clauses = _parse_total_clauses_for_query(query_tag)
+    if total_clauses == 0:
+        total_clauses = _parse_total_clauses_for_query(query_tag)
     return {
         "solver_runtime_seconds": runtime_s,
         "peak_solver_rss_bytes": peak_solver_rss_bytes,
         "total_clauses": total_clauses,
+        "total_dimacs_vars": total_dimacs_vars,
         "sat_query_count": sat_query_count,
     }
 
@@ -1037,6 +1095,8 @@ def proof_path(path : list[dict], t : int , gen_syn : list ,all_condtion : list,
     
     vars = [v for step in path for info in step["site_info"]  for v in info["vars"].values()]
     faults =  [info["act"] for step in path for info in step["site_info"]]
+    num_fault_vars = len({str(v) for v in vars})
+    num_fault_sites = len(faults)
     gen_syn_z3 = []
     for type, idx in gen_syn:
         # --- flatten helper (no function) ---
@@ -1086,6 +1146,8 @@ def proof_path(path : list[dict], t : int , gen_syn : list ,all_condtion : list,
     )
 
     query_stats = _parse_solver_metrics(out, query_tag)
+    query_stats["num_fault_vars"] = num_fault_vars
+    query_stats["num_fault_sites"] = num_fault_sites
     return status, counterexample, query_stats
     
     # Add fault constraints if needed

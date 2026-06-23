@@ -1,22 +1,22 @@
-stab_txt_path = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_low_depth/[[5,1,3]]_low_depth.txt
-raw_syndrome = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_low_depth/raw_[[5,1,3]]_low_depth_flag_syndrome.qasm
-IXZZX_flag = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_low_depth/IXZZX_flag.qasm
-IXZZX_raw  = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_low_depth/IXZZX_raw.qasm
+stab_txt_path = [[5,1,3]]_low_depth.txt
+raw_syndrome = raw_[[5,1,3]]_low_depth_flag_syndrome.qasm
+IXZZX_flag = IXZZX_flag.qasm
+IXZZX_raw = IXZZX_raw.qasm
 
-IYXXY_raw  = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_low_depth/IYXXY_raw.qasm
+IYXXY_raw = IYXXY_raw.qasm
 
-XIXZZ_flag = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_low_depth/XIXZZ_flag.qasm
-XIXZZ_raw  = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_low_depth/XIXZZ_raw.qasm
+XIXZZ_flag = XIXZZ_flag.qasm
+XIXZZ_raw = XIXZZ_raw.qasm
 
-XZZXI_flag = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_low_depth/XZZXI_flag.qasm
-XZZXI_raw  = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_low_depth/XZZXI_raw.qasm
+XZZXI_flag = XZZXI_flag.qasm
+XZZXI_raw = XZZXI_raw.qasm
 
-YIYXX_raw  = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_low_depth/YIYXX_raw.qasm
-YXXYI_raw  = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_low_depth/YXXYI_raw.qasm
+YIYXX_raw = YIYXX_raw.qasm
+YXXYI_raw = YXXYI_raw.qasm
 
-YZIZY_raw  = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_low_depth/YZIZY_raw.qasm
-ZIZYY_raw  = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_low_depth/ZIZYY_raw.qasm
+YZIZY_raw = YZIZY_raw.qasm
+ZIZYY_raw = ZIZYY_raw.qasm
 
-ZXIXZ_flag = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_low_depth/ZXIXZ_flag.qasm
-ZXIXZ_raw  = /Users/wuboris/Desktop/flag verification/[[5,1,3]]_low_depth/ZXIXZ_raw.qasm
-log_txt_path =  /Users/wuboris/Desktop/flag verification/[[5,1,3]]_low_depth/[[5,1,3]]_low_depth_log_op.txt
+ZXIXZ_flag = ZXIXZ_flag.qasm
+ZXIXZ_raw = ZXIXZ_raw.qasm
+log_txt_path = [[5,1,3]]_low_depth_log_op.txt

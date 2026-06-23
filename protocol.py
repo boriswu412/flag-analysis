@@ -1,6 +1,20 @@
 import json
 import os
+from pathlib import Path
 from typing import Optional, List, Dict
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+
+
+def _resolve_project_path(path: str | Path) -> Path:
+    """Resolve a relative path from cwd or the project root."""
+    p = Path(path)
+    if p.is_absolute():
+        return p.resolve()
+    for candidate in (Path.cwd() / p, PROJECT_ROOT / p):
+        if candidate.exists():
+            return candidate.resolve()
+    return (PROJECT_ROOT / p).resolve()
 
 class Condition:
     def __init__(self, cond_type: str, left=None, right=None,
@@ -142,7 +156,7 @@ from graphviz import Digraph
 
 def visualize_protocol_from_file(filepath: str, outname="protocol_graph"):
     # Load JSON
-    with open(filepath, "r") as f:
+    with open(_resolve_project_path(filepath), "r") as f:
         data = json.load(f)
 
     dot = Digraph(comment="Protocol Graph")
@@ -226,7 +240,7 @@ def load_protocol(path: str):
       start_node: str
       protocol: Dict[str, Node]
     """
-    with open(path, "r") as f:
+    with open(_resolve_project_path(path), "r") as f:
         raw = json.load(f)
 
     start_node = raw["start_node"]
@@ -602,7 +616,7 @@ def build_flag_protocol_chris_d_3():
     # Add nodes and branches as per the flag protocol structure
     # This is a placeholder for the actual implementation
 
-    protocol.save_to_file("/Users/wuboris/Desktop/flag verification/protocols/chris_d_3_flag_protocol.json")
+    protocol.save_to_file("./protocols/chris_d_3_flag_protocol.json")
     return protocol
 
 def build_origin_5_1_3_protocol() -> Protocol:
