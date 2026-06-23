@@ -1,0 +1,5 @@
+flag_syndrome = chau_du_[[17,1,5]]_flag_syndrome.qasm
+raw_syndrome = raw_chau_du_[[17,1,5]]_flag_syndrome.qasm
+stab_txt_path = chao_du_[[17,1,5]]_stab.txt
+flag_syndrome_flag_group = chao_du_[[17,1,5]]_flag_group.json
+log_txt_path = chao_du_[[17,1,5]]_log.txt
