@@ -121,6 +121,35 @@ def _regmap_indices(qc: QuantumCircuit):
             idx += 1
     return regmap
 
+
+def _format_qubit_label(qc: QuantumCircuit, qidx: int) -> str:
+    reg, loc = _regmap_indices(qc)[qidx]
+    return f"{reg}[{loc}]"
+
+
+def _format_gate_qubits(qc: QuantumCircuit, qidxs: list[int]) -> str:
+    return ", ".join(_format_qubit_label(qc, q) for q in qidxs)
+
+
+def describe_gate_at_index(qasm_path: str, gate_index: int) -> str:
+    """Return a human-readable description of gate `gate_index` in a QASM file."""
+    qc = load_qasm(qasm_path)
+    if gate_index < 0 or gate_index >= len(qc.data):
+        raise IndexError(
+            f"gate_index {gate_index} out of range (len={len(qc.data)})"
+        )
+    inst = qc.data[gate_index]
+    name = inst.operation.name
+    qidxs = [_qiskit_qubit_index(qc, q) for q in inst.qubits]
+    return f"Gate index {gate_index}: {name} on {_format_gate_qubits(qc, qidxs)}"
+
+
+def _gate_qubit_labels(qc: QuantumCircuit, gate_index: int) -> str:
+    return _format_gate_qubits(
+        qc,
+        [_qiskit_qubit_index(qc, q) for q in qc.data[gate_index].qubits],
+    )
+
 def xor_list(lst):
     acc = BoolVal(False)
     for v in lst:
@@ -835,8 +864,10 @@ def symbolic_execution_of_state(qasm_path: str,
     for i, (instr, qargs, _) in enumerate(qc.data):
         name = instr.name
         qidxs = [_qiskit_qubit_index(qc, q) for q in qargs]
-        print("index:", i, "name:", name, "qidxs:", qidxs)
-       # print(f"Processing gate {i}: {name} on qubits {qidxs}")
+        if track_steps:
+            print(
+                f"Gate index {i}: {name} on {_format_gate_qubits(qc, qidxs)}"
+            )
         if name in ("h","s","sdg"):
             apply_qasm_gate_into_state(state, name, qidxs)
             if i in fault_gate_indices and fault_inject:
@@ -2471,19 +2502,20 @@ def find_bad_locations(qasm_path: str, stab_txt_path: str,num_gates: int):
     )
 
     bad_locations_dict = [] # List to store bad locations for the current circuit
-    qc = QuantumCircuit.from_qasm_file(qasm_path)
+    qc = load_qasm(qasm_path)
 
-
+    skip_gates = {"barrier", "barier", "measure", "reset", "id"}
 
     for i in range(num_gates):  # Iterate over gates in the subcircuit
-        
-       
-        if qc.data[i].name  in ["barier", "measure", "reset"]:
-            print(f"Gate index {i}: " , qc.data[i].name )
+
+        inst = qc.data[i]
+        gate_name = inst.operation.name
+        qubits = _gate_qubit_labels(qc, i)
+
+        if gate_name in skip_gates:
+            print(f"Gate index {i}: {gate_name} on {qubits} (skipped)")
             continue  # Skip non-unitary gates
 
-        
-        
         state, qc, site_info, groups = build_state_with_fault_after_gate(
             qasm_path,
             gate_index=i,
@@ -2520,8 +2552,10 @@ def find_bad_locations(qasm_path: str, stab_txt_path: str,num_gates: int):
         s.add(Or(fault_var))  # At most one fault
    
         # Check satisfiability
-        if s.check() == sat : print(f"Gate index {i}: Bad location " )
-        else :print(f"Gate index {i}: Safe" )
+        if s.check() == sat:
+            print(f"Gate index {i}: Bad location — {gate_name} on {qubits}")
+        else:
+            print(f"Gate index {i}: Safe — {gate_name} on {qubits}")
         if s.check() == sat:
             #print("Bad location found at gate index:", i)
             #print("qc.instructions ", qc.data[i].name, qc.data[i].qubits)
