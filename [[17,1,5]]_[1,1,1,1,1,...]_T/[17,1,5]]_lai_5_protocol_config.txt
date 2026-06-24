@@ -1,4 +1,4 @@
-stab_txt_path = ../[[17,1,5]]_[1,1,1,1,1,...]_T/[[17,1,5]].txt
-raw_syndrome = ../[[17,1,5]]_[1,1,1,1,1,...]_T/[[17,1,5]]_raw.qasm
-flag_syndrome = /Users/wuboris/Desktop/flag verification/[[17,1,5]]_[1,1,1,1,1,...]_T/[[17,1,5]]_flag.qasm
-log_txt_path =  ../[[17,1,5]]_[1,1,1,1,1,...]_T/[[17,1,5]]_log.txt
+stab_txt_path = [[17,1,5]].txt
+raw_syndrome = [[17,1,5]]_raw.qasm
+flag_syndrome = [[17,1,5]]_flag.qasm
+log_txt_path = [[17,1,5]]_log.txt
