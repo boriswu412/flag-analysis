@@ -14,3 +14,4 @@ venv/
 
 *.ipynb
 !boolean_learning.ipynb
+!test_for_function.ipynb
