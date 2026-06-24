@@ -1,6 +1,0 @@
-
-./protocols/correct_full_chris_d_5_low_depth_protocol.json	 flag_verification/flag-analysis/chau_du_[[19,1,5]]/chao_du_[[19,1,5]]_config.txt 2
-
-
-./protocols/d_5_lai_protocol.json	
-

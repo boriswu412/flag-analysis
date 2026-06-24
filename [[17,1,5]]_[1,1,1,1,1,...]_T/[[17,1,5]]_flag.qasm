@@ -13,7 +13,7 @@ cx q[0], ancZ[1];
 cx q[4], ancZ[2];
 cx q[6], ancZ[3];
 cx q[8], ancZ[4];
-cx q[11], ancZ[5];
+cx q[10], ancZ[5];
 cx q[7], ancZ[6];
 cx q[13], ancZ[7];
 
@@ -69,7 +69,7 @@ cx flagX[3], ancZ[3];
 cx flagX[4], ancZ[4];
 cx flagX[5], ancZ[5];
 cx flagX[6], ancZ[6];
-cx flagX[7], ancZ[7];
+cx flagX[9], ancZ[7];
 
 
 barrier;
@@ -114,7 +114,7 @@ cx ancX[1], q[0];
 cx ancX[2], q[4];
 cx ancX[3], q[6];
 cx ancX[4], q[8];
-cx ancX[5], q[11];
+cx ancX[5], q[10];
 cx ancX[6], q[7];
 cx ancX[7], q[13];
 
@@ -170,7 +170,7 @@ cx ancX[3], flagZ[3];
 cx ancX[4], flagZ[4];
 cx ancX[5], flagZ[5];
 cx ancX[6], flagZ[6];
-cx ancX[7], flagZ[7];
+cx ancX[7], flagZ[9];
 
 
 barrier;

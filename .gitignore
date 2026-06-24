@@ -6,6 +6,9 @@ __pycache__/
 venv/
 .venv/
 
+
+jobs.txt
+
 # SAT solver artifacts
 *.cnf
 

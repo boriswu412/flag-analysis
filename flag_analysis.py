@@ -870,16 +870,10 @@ def symbolic_execution_of_state(qasm_path: str,
     for i, (instr, qargs, _) in enumerate(qc.data):
         name = instr.name
         qidxs = [_qiskit_qubit_index(qc, q) for q in qargs]
-<<<<<<< HEAD
-        if not _QUIET:
-            print("index:", i, "name:", name, "qidxs:", qidxs)
-       # print(f"Processing gate {i}: {name} on qubits {qidxs}")
-=======
         if track_steps:
             print(
                 f"Gate index {i}: {name} on {_format_gate_qubits(qc, qidxs)}"
             )
->>>>>>> 6844cdd28158d0df12d1b81ff0525bea2a3be275
         if name in ("h","s","sdg"):
             apply_qasm_gate_into_state(state, name, qidxs)
             if i in fault_gate_indices and fault_inject:
@@ -1820,14 +1814,23 @@ def check_ancillas_match_symplectic_ordered(qasm_path: str,
     
     
     ancillas = (ancX + ancZ) if order == "X-then-Z" else (ancZ + ancX)
-    print(f"Total ancillas considered: {len(ancillas)}")
-    for a in ancillas:
-        print("Ancilla formula:", a)
+
     # Stabilizer anticommute formulas from txt (exact line order)
     gens = load_symplectic_txt(stab_txt_path)
     stabs = [anticomm_formula(Sx, Sz, varenv) for (Sx, Sz) in gens]
 
-    
+    print(f"Total ancillas considered: {len(ancillas)}")
+    for i, (a, s) in enumerate(zip(ancillas, stabs)):
+        print(f"Ancilla formula [{i}]:", a)
+        print(f"Expected formula (stab.txt) [{i}]:", s)
+    if len(ancillas) > len(stabs):
+        for i in range(len(stabs), len(ancillas)):
+            print(f"Ancilla formula [{i}]:", ancillas[i])
+            print(f"Expected formula (stab.txt) [{i}]: (missing — stab.txt has fewer rows)")
+    elif len(stabs) > len(ancillas):
+        for i in range(len(ancillas), len(stabs)):
+            print(f"Ancilla formula [{i}]: (missing — circuit has fewer ancillas)")
+            print(f"Expected formula (stab.txt) [{i}]:", stabs[i])
 
     if len(ancillas) != len(stabs):
         print(f"[COUNT MISMATCH] ancillas={len(ancillas)} vs stabs={len(stabs)}")
@@ -2479,14 +2482,6 @@ def prove_syndrome_extractions(qasm_path: str, stab_txt_path: str):
     #print("AncZ (Z-type) syndromes:", synZ_vals)
     #print("Flags X-basis:", flgX_vals)
     #print("Flags Z-basis:", flgZ_vals)
-
-    # Load stabilizers
-    stabs = load_symplectic_txt(stab_txt_path)
-    #print("Stabilizers:", stabs)
-    # Get Boolean formulas
-    stab_exprs = [anticomm_formula(Sx, Sz, varenv) for Sx,Sz in stabs]
-
-    # Stabilizer formula debug print suppressed
 
     report = check_ancillas_match_symplectic_ordered(
     qasm_path,
