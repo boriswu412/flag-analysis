@@ -468,6 +468,63 @@ def _parse_z3_dimacs_varmap(dimacs_text: str) -> Dict[int, str]:
         vmap[idx] = name
     return vmap
 
+
+def merge_dimacs_cnfs(cnf_paths: List[str], out_path: str) -> Dict[int, object]:
+    """
+    Merge multiple DIMACS CNF files into one file with unified variable numbering.
+
+    Variables are identified by Z3 name (from ``c <id> <name>`` comments) so the
+    same logical variable keeps one id across subgoals.
+
+    Returns:
+        merged vmap: {dimacs_int -> z3.BoolRef}
+    """
+    from z3 import Bool
+
+    global_name_to_id: Dict[str, int] = {}
+    merged_clauses: List[List[int]] = []
+
+    def global_id_for_name(name: str) -> int:
+        if name not in global_name_to_id:
+            global_name_to_id[name] = len(global_name_to_id) + 1
+        return global_name_to_id[name]
+
+    def remap_lit(lit: int, id_to_name: Dict[int, str], cnf_tag: str) -> int:
+        local = abs(lit)
+        name = id_to_name.get(local)
+        if name is None:
+            name = f"{cnf_tag}_anon_{local}"
+        gid = global_id_for_name(name)
+        return gid if lit > 0 else -gid
+
+    for sg_idx, cnf_path in enumerate(cnf_paths):
+        with open(cnf_path, "r", encoding="utf-8") as f:
+            text = f.read()
+        id_to_name = _parse_z3_dimacs_varmap(text)
+        tag = os.path.splitext(os.path.basename(cnf_path))[0]
+
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line.startswith("c") or line.startswith("p cnf"):
+                continue
+            lits = [int(x) for x in line.split() if x != "0"]
+            if not lits:
+                continue
+            merged_clauses.append([
+                remap_lit(lit, id_to_name, f"{tag}_{sg_idx}") for lit in lits
+            ])
+
+    num_vars = len(global_name_to_id)
+    with open(out_path, "w", encoding="utf-8") as f:
+        for name, idx in sorted(global_name_to_id.items(), key=lambda kv: kv[1]):
+            f.write(f"c {idx} {name}\n")
+        f.write(f"p cnf {num_vars} {len(merged_clauses)}\n")
+        for clause in merged_clauses:
+            f.write(" ".join(str(x) for x in clause) + " 0\n")
+
+    return {idx: Bool(name) for name, idx in global_name_to_id.items()}
+
+
 from z3 import Goal, Then, Bool
 def build_dimacs(goal: Goal, use_card2bv: bool = True) -> Tuple[List[str], List[Dict[int, object]]]:
     """Convert a Z3 Goal to one-or-more CNF subgoals, write DIMACS files, and return per-subgoal var maps.

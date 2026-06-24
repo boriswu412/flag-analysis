@@ -27,7 +27,7 @@ def _resolve_project_path(path: str | Path) -> Path:
     return (PROJECT_ROOT / p).resolve()
 
 
-from dimacs_bridge import build_dimacs, resolve_cryptominisat_binary, run_cryptominisat, model_to_z3_assignment, pretty_print_z3_assignment, pretty_print_true_z3_vars
+from dimacs_bridge import build_dimacs, merge_dimacs_cnfs, resolve_cryptominisat_binary, run_cryptominisat, model_to_z3_assignment, pretty_print_z3_assignment, pretty_print_true_z3_vars
 
 from circuit_op import *
 from protocol import *
@@ -1283,6 +1283,23 @@ def uniqueness_build_goal(vars, at_most_t_faults, condition, gen_syn_z3,
     g.add(condition_E_2_not_in_stab)
     return g
 
+
+def _verify_witness_same_syn(gen_syn_z3, p1, p2, fault_vars, default_false=True):
+    """Check that extracted p1/p2 satisfy the same_syn constraint."""
+    if not gen_syn_z3:
+        return True
+    ren_1 = make_renamer_from_symbols(fault_vars, "_p1")
+    ren_2 = make_renamer_from_symbols(fault_vars, "_p2")
+    gs1 = primed_copy(gen_syn_z3, ren_1)
+    gs2 = primed_copy(gen_syn_z3, ren_2)
+    same_syn = And(*[a == b for a, b in zip(gs1, gs2)])
+    assignment = (
+        {f"{k}_p1": v for k, v in p1.items()}
+        | {f"{k}_p2": v for k, v in p2.items()}
+    )
+    return bool(eval_with_values(same_syn, assignment, default_false=default_false))
+
+
 import subprocess
 import re
 from z3 import Then  # make sure Goal/Then exist in your imports
@@ -1380,17 +1397,37 @@ def uniqueness_solve_with_cryptominisat(
     # 3) Find CryptoMiniSat
     cms_exec = resolve_cryptominisat_binary(cms_bin)
 
-    # 4) Solve each subgoal
+    # 4) Merge subgoals into one CNF when needed (avoids invalid partial models)
+    solve_cnf = cnf_files[0]
+    solve_vmap = var_maps[0]
+    merged_cnf = None
+    if len(cnf_files) > 1:
+        merged_cnf = f"{base}_merged.cnf"
+        solve_vmap = merge_dimacs_cnfs(cnf_files, merged_cnf)
+        solve_cnf = merged_cnf
+        total_clauses = 0
+        total_dimacs_vars = len(solve_vmap)
+        try:
+            with open(solve_cnf, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("p cnf "):
+                        parts = line.split()
+                        if len(parts) >= 4:
+                            total_dimacs_vars = int(parts[2])
+                            total_clauses = int(parts[3])
+                        break
+        except (OSError, ValueError):
+            pass
+
     outputs = []
     outputs.append(
-        f"[info] num_subgoals={len(cnf_files)} use_card2bv={use_card2bv} timeout_s={timeout_s}\n"
+        f"[info] num_subgoals={len(cnf_files)} merged={len(cnf_files) > 1} "
+        f"use_card2bv={use_card2bv} timeout_s={timeout_s}\n"
     )
 
-    any_unknown = False
-    collected_model_lits = None
-    counterexample = None
     total_solver_time_s = 0.0
     peak_solver_rss_bytes = None
+    counterexample = None
 
     def finalize(status: str, model_lits):
         summary_lines = [f"[stats] total_solver_time_seconds={total_solver_time_s:.6f}"]
@@ -1399,59 +1436,48 @@ def uniqueness_solve_with_cryptominisat(
         if peak_solver_rss_bytes is not None:
             summary_lines.append(f"[stats] peak_solver_rss_bytes={peak_solver_rss_bytes}")
         outputs.append("\n" + "\n".join(summary_lines) + "\n")
+        if not keep_cnf_files:
+            for p in cnf_files + ([merged_cnf] if merged_cnf else []):
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
         return status, model_lits, "".join(outputs), counterexample
 
-    for i, (cnf, vmap) in enumerate(zip(cnf_files, var_maps)):
-        st, lits, out, elapsed_s, rss_bytes = run_cryptominisat(cnf, cms_exec, timeout_s=timeout_s, cms_extra_args=cms_extra_args)
-        total_solver_time_s += elapsed_s
-        if rss_bytes is not None:
-            peak_solver_rss_bytes = rss_bytes if peak_solver_rss_bytes is None else max(peak_solver_rss_bytes, rss_bytes)
+    st, lits, out, elapsed_s, rss_bytes = run_cryptominisat(
+        solve_cnf, cms_exec, timeout_s=timeout_s, cms_extra_args=cms_extra_args
+    )
+    total_solver_time_s += elapsed_s
+    peak_solver_rss_bytes = rss_bytes
 
-        outputs.append(f"\n===== Subgoal {i} : {st.upper()}  ({cnf}) =====\n")
-        outputs.append(out)
+    outputs.append(f"\n===== Solve : {st.upper()}  ({solve_cnf}) =====\n")
+    outputs.append(out)
 
-        if st == "unsat":
-            if verbose:
-                print("UNSAT")
-                print("Success: uniqueness holds")
-            # whole conjunction UNSAT
-            if not keep_cnf_files:
-                for p in cnf_files:
-                    try:
-                        os.remove(p)
-                    except OSError:
-                        pass
-            return finalize("unsat", None)
+    if st == "unsat":
+        if verbose:
+            print("UNSAT")
+            print("Success: uniqueness holds")
+        return finalize("unsat", None)
 
-        if st == "unknown":
-            any_unknown = True
-
-        if st == "sat" and lits:
-            if collected_model_lits is None:
-                collected_model_lits = lits
-
-            # Keep a compact counterexample payload for the caller.
-            if counterexample is None:
-                p1, p2 = pretty_print_true_z3_vars(lits, vmap)
-                counterexample = {"p1": p1, "p2": p2}
-               
-
-       
-            if verbose:
-                p1, p2 = counterexample["p1"], counterexample["p2"]
-                print("p1 true vars:", p1)
-                print("p2 true vars:", p2)
-            # 5) Cleanup
-            if not keep_cnf_files:
-                for p in cnf_files:
-                    try:
-                        os.remove(p)
-                    except OSError:
-                        pass
-
-    # 6) Final
-    if any_unknown:
+    if st == "unknown":
         return finalize("unknown", None)
+
+    collected_model_lits = lits
+    if st == "sat" and lits:
+        p1, p2 = pretty_print_true_z3_vars(lits, solve_vmap)
+        if _verify_witness_same_syn(gen_syn_z3, p1, p2, vars):
+            counterexample = {"p1": p1, "p2": p2}
+        else:
+            outputs.append(
+                "[warn] SAT model failed same_syn verification; treating as unknown\n"
+            )
+            if verbose:
+                print("WARNING: SAT model did not satisfy same_syn; treating as unknown")
+            return finalize("unknown", lits)
+
+        if verbose:
+            print("p1 true vars:", p1)
+            print("p2 true vars:", p2)
 
     return finalize("sat", collected_model_lits)
     
@@ -2188,6 +2214,161 @@ def eval_state_dict_with_values(state_dict, assignment, default_false=True):
 
     return out
 
+
+def _unwrap_proof_protocol_paths(path_or_paths):
+    """Return all_paths from proof_protocol output, or passthrough a path collection."""
+    if path_or_paths is None:
+        raise ValueError("path is empty")
+    if isinstance(path_or_paths, tuple):
+        if len(path_or_paths) == 0:
+            raise ValueError("path is empty")
+        path_or_paths = path_or_paths[0]
+    if path_or_paths is None or len(path_or_paths) == 0:
+        raise ValueError("path is empty")
+    return path_or_paths
+
+
+def _is_protocol_step(step):
+    return isinstance(step, dict) and "state" in step
+
+
+def _is_state_dict(state):
+    return isinstance(state, dict) and "data" in state and "state" not in state
+
+
+def _steps_from_state_dicts(states):
+    return [
+        {"round": i, "node": None, "instruction": None, "state": st}
+        for i, st in enumerate(states)
+    ]
+
+
+def _select_protocol_path(path, path_index=0):
+    """
+    Normalize proof_protocol path input to a list of step dicts.
+
+    Accepts:
+      - (all_paths, stats) tuple from proof_protocol()
+      - all_paths: list[list[step_dict]]
+      - single path: list[step_dict]
+    """
+    paths = _unwrap_proof_protocol_paths(path)
+
+    if _is_protocol_step(paths[0]):
+        return paths, 0
+
+    if path_index < 0 or path_index >= len(paths):
+        raise IndexError(
+            f"path_index out of range: {path_index}, valid 0..{len(paths)-1}"
+        )
+
+    selected = paths[path_index]
+    if not isinstance(selected, list) or len(selected) == 0:
+        raise TypeError(
+            "Expected proof_protocol all_paths (list of step-dict lists), "
+            "a single path (list of step dicts), or (all_paths, stats) tuple."
+        )
+
+    if _is_protocol_step(selected[0]):
+        return selected, path_index
+
+    if _is_state_dict(selected[0]):
+        return _steps_from_state_dicts(selected), path_index
+
+    raise TypeError(
+        "Expected proof_protocol all_paths (list of step-dict lists), "
+        "a single path (list of step dicts), or (all_paths, stats) tuple."
+    )
+
+
+def _flatten_qubit_list(items):
+    return [q for g in items for q in (g if isinstance(g, list) else [g])]
+
+
+def _find_lut_instruction(path):
+    for step in reversed(path):
+        instr = step.get("instruction")
+        if instr and str(instr).startswith("LUT_"):
+            return instr
+    raise ValueError("No LUT instruction found on path")
+
+
+def build_gen_syn_z3(path, lut_instr=None):
+    """
+    Build labeled Z3 expressions for gen_syn_z3 exactly as proof_path does.
+
+    Returns:
+        (lut_name, labels, exprs)
+    """
+    from proof_protocol import parse_lut_instr
+
+    lut = lut_instr or _find_lut_instruction(path)
+    gen_syn = parse_lut_instr(lut)
+    labels = []
+    exprs = []
+    for kind, idx in gen_syn:
+        if idx >= len(path):
+            raise IndexError(
+                f"LUT {lut!r} references step {idx}, but path has {len(path)} steps"
+            )
+        st = path[idx]["state"]
+        ancX = _flatten_qubit_list(st.get("ancX", []))
+        ancZ = _flatten_qubit_list(st.get("ancZ", []))
+        flagX = _flatten_qubit_list(st.get("flagX", []))
+        flagZ = _flatten_qubit_list(st.get("flagZ", []))
+
+        if kind == "s":
+            for j, a in enumerate(ancX):
+                labels.append(f"s_{idx}|ancX[{j}].z")
+                exprs.append(a.z)
+            for j, a in enumerate(ancZ):
+                labels.append(f"s_{idx}|ancZ[{j}].x")
+                exprs.append(a.x)
+        elif kind == "f":
+            for j, q in enumerate(flagX):
+                labels.append(f"f_{idx}|flagX[{j}].z")
+                exprs.append(q.z)
+            for j, q in enumerate(flagZ):
+                labels.append(f"f_{idx}|flagZ[{j}].x")
+                exprs.append(q.x)
+    return lut, labels, exprs
+
+
+def eval_gen_syn_on_path(path, assignment, path_index=0, default_false=True, lut_instr=None):
+    """
+    Evaluate the generalized syndrome bits (gen_syn_z3) for one fault assignment.
+
+    Uses the same LUT indexing and measured-bit convention as proof_path().
+    """
+    selected_path, resolved_index = _select_protocol_path(path, path_index=path_index)
+    lut, labels, exprs = build_gen_syn_z3(selected_path, lut_instr=lut_instr)
+    values = eval_with_values(exprs, assignment, default_false=default_false)
+    bits = list(zip(labels, values))
+    return {
+        "path_index": resolved_index,
+        "lut": lut,
+        "bits": bits,
+        "vector": [int(v) for _, v in bits],
+    }
+
+
+def print_gen_syn_comparison(path, assignment_a, assignment_b, path_index=0, default_false=True):
+    """
+    Print LUT gen_syn bit vectors for two assignments side-by-side.
+    """
+    ga = eval_gen_syn_on_path(path, assignment_a, path_index=path_index, default_false=default_false)
+    gb = eval_gen_syn_on_path(path, assignment_b, path_index=path_index, default_false=default_false)
+    same = ga["vector"] == gb["vector"]
+
+    print(f"Path {ga['path_index']}  LUT={ga['lut']}")
+    print(f"  same gen_syn? {same}")
+    for (lbl, va), (_, vb) in zip(ga["bits"], gb["bits"]):
+        mark = "" if va == vb else "  <-- differ"
+        print(f"  {lbl:<22}  A={int(va)}  B={int(vb)}{mark}")
+
+    return {"a": ga, "b": gb, "same_gen_syn": same}
+
+
 def eval_path_all_states(path, assignment, default_false=True):
     out = []
     for step in path:
@@ -2209,12 +2390,7 @@ def evaluate_two_assignments_on_path(path, assignment_a, assignment_b, path_inde
 
     Returns a dict with per-step evaluated states and final Pauli strings for both cases.
     """
-    if path is None or len(path) == 0:
-        raise ValueError("path is empty")
-    if path_index < 0 or path_index >= len(path):
-        raise IndexError(f"path_index out of range: {path_index}, valid 0..{len(path)-1}")
-
-    selected_path = path[path_index]
+    selected_path, resolved_index = _select_protocol_path(path, path_index=path_index)
 
     steps_a = eval_path_all_states(selected_path, assignment_a, default_false=default_false)
     steps_b = eval_path_all_states(selected_path, assignment_b, default_false=default_false)
@@ -2223,7 +2399,7 @@ def evaluate_two_assignments_on_path(path, assignment_a, assignment_b, path_inde
     final_state_b = eval_state_dict_with_values(selected_path[-1]["state"], assignment_b, default_false=default_false)
 
     return {
-        "path_index": path_index,
+        "path_index": resolved_index,
         "assignment_a": assignment_a,
         "assignment_b": assignment_b,
         "steps_a": steps_a,
@@ -2365,8 +2541,9 @@ def evaluate_two_assignments_on_paths(paths, assignment_a, assignment_b, path_in
     Returns:
         list of per-path reports from evaluate_two_assignments_on_path(...)
     """
-    if paths is None or len(paths) == 0:
-        raise ValueError("paths is empty")
+    paths = _unwrap_proof_protocol_paths(paths)
+    if _is_protocol_step(paths[0]):
+        paths = [paths]
 
     if path_indices is None:
         path_indices = list(range(len(paths)))

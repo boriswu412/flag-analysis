@@ -798,6 +798,163 @@ def build_low_depth_7_1_3_w_6_protocol():
     protocol.save_to_file("./protocols/low_depth_7_1_3_w_6_protocol.json")
 
 
+
+def build_low_depth_7_1_3_w_6_second_protocol():
+    protocol = Protocol(start_node="root")
+    stab_gen = ["IIIXXXX", "IXXIIXX", "XIXIXIX", "IIIIZZZZ", "IZZIIZZZ", "ZIZIZIZI"]
+    half = len(stab_gen) // 2
+
+    def paired_raw_stab(i: int) -> str:
+        # First half = X-type flag rounds; second half = Z-type. Pair with opposite-type raw.
+        return stab_gen[i + half] if i < half else stab_gen[i - half]
+
+    root_node = Node(node_id="root", instructions=[], branches=[])
+    current_node = root_node
+
+    for i in range(len(stab_gen)):
+        lut_name = "LUT"
+        for j in range(0, i + 1):
+            lut_name += f"_s_{j}_f_{j}"
+
+        stab = stab_gen[i]
+        condition_s_i_one = Condition(cond_type="equal", left=f"s_{i}", right=True)
+        condition_s_i_zero = Condition(cond_type="equal", left=f"s_{i}", right=False)
+        condition_f_i_zero = Condition(cond_type="equal", left=f"f_{i}", right=False)
+        condition_s_one_f_zero = Condition(
+            "and", operands=[condition_s_i_one, condition_f_i_zero]
+        )
+
+        current_node.instructions.append(f"{stab}_flag")
+        current_node.branches = [
+            Branch(target=f"{stab}_path_s_one_f_zero", condition=condition_s_one_f_zero),
+            Branch(
+                target=f"{stab}_path_not_f_zero",
+                condition=Condition("not", operand=condition_f_i_zero),
+            ),
+            Branch(
+                target=f"{stab}_path_all_zero",
+                condition=Condition("and", operands=[condition_s_i_zero, condition_f_i_zero]),
+            ),
+        ]
+        protocol.add_node(current_node)
+
+        # --- path: syndrome one, no flag ---
+        protocol.add_node(
+            Node(
+                node_id=f"{stab}_path_s_one_f_zero",
+                instructions=["raw_syndrome_x"] if i < half else ["raw_syndrome_z"],
+                branches=[Branch(target=f"{stab}_path_s_one_after_raw_x")],
+            )
+        )
+        protocol.add_node(
+            Node(
+                node_id=f"{stab}_path_s_one_after_raw_x",
+                instructions=[f"{paired_raw_stab(i)}_raw"],
+                branches=[Branch(target=f"{stab}_path_s_one_ter")],
+            )
+        )
+        protocol.add_node(
+            Node(
+                node_id=f"{stab}_path_s_one_ter",
+                instructions=[lut_name + f"_s_{i + 1}" + f"_s_{i + 2}"],
+                branches=[],
+            )
+        )
+
+        # --- path: flag raised ---
+        protocol.add_node(
+            Node(
+                node_id=f"{stab}_path_not_f_zero",
+                instructions=[f"{stab}_raw"],
+                branches=[Branch(target=f"{stab}_path_not_f_after_raw")],
+            )
+        )
+        protocol.add_node(
+            Node(
+                node_id=f"{stab}_path_not_f_after_raw",
+                instructions=[f"{paired_raw_stab(i)}_raw"],
+                branches=[
+                    Branch(
+                        target=f"{stab}_path_not_f_s{i + 1}_false",
+                        condition=Condition(cond_type="equal", left=f"s_{i + 1}", right=False),
+                    ),
+                    Branch(
+                        target=f"{stab}_path_not_f_s{i + 1}_true",
+                        condition=Condition(cond_type="equal", left=f"s_{i + 1}", right=True),
+                    ),
+                ],
+            )
+        )
+        if i == 0 or  i == 1 :
+            stab_1 = stab_gen[5]
+            stab_2 = stab_gen[2]
+        
+        elif i ==2 :
+            stab_1 = stab_gen[4]
+            stab_2 = stab_gen[1]
+        elif i == 3 or i == 4:
+            stab_1 = stab_gen[2]
+            stab_2 = stab_gen[5]
+        
+        elif i == 5:
+            stab_1 = stab_gen[1]
+            stab_2 = stab_gen[4]
+        protocol.add_node(
+            Node(
+                node_id=f"{stab}_path_not_f_s{i + 1}_false",
+                instructions=[f"{stab_1}_raw"],
+                branches=[Branch(target=f"{stab}_path_not_f_s{i + 1}_false_ter")],
+            )
+        )
+        protocol.add_node(
+            Node(
+                node_id=f"{stab}_path_not_f_s{i + 1}_false_ter",
+                instructions=[lut_name + f"_s_{i + 1}" + f"_s_{i + 2}" + f"_s_{i + 3}"],
+                branches=[],
+            )
+        )
+        protocol.add_node(
+            Node(
+                node_id=f"{stab}_path_not_f_s{i + 1}_true",
+                instructions=[f"{stab_2}_raw"],
+                branches=[Branch(target=f"{stab}_path_not_f_s{i + 1}_true_ter")],
+            )
+        )
+        protocol.add_node(
+            Node(
+                node_id=f"{stab}_path_not_f_s{i + 1}_true_ter",
+                instructions=[lut_name + f"_s_{i + 1}" + f"_s_{i + 2}" + f"_s_{i + 3}"],
+                branches=[],
+            )
+        )
+
+        # --- path: all zero (chains to next round on clean branch) ---
+        if i == len(stab_gen) - 1:
+            protocol.add_node(
+                Node(
+                    node_id=f"{stab}_path_all_zero",
+                    instructions=[],
+                    branches=[Branch(target=f"{stab}_path_all_zero_break")],
+                )
+            )
+            protocol.add_node(
+                Node(
+                    node_id=f"{stab}_path_all_zero_break",
+                    instructions=["Break"],
+                    branches=[],
+                )
+            )
+            current_node = None
+        else:
+            current_node = Node(
+                node_id=f"{stab}_path_all_zero",
+                instructions=[],
+                branches=[],
+            )
+
+    protocol.save_to_file("./protocols/low_depth_7_1_3_w_6_second_protocol.json")
+
+
 def build_flag_protocol_chris_d_5():
 
     protocol = Protocol(start_node="root")
