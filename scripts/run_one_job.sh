@@ -4,8 +4,11 @@ set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-# shellcheck disable=SC1091
-source venv/bin/activate
+PYTHON="$ROOT/venv/bin/python"
+if [[ ! -x "$PYTHON" ]]; then
+  echo "[$(date '+%H:%M:%S')] ERROR  venv not found. Run: bash scripts/setup_server.sh"
+  exit 1
+fi
 
 protocol="$1"
 config="$2"
@@ -32,7 +35,7 @@ fi
 echo "[$(date '+%H:%M:%S')] START  ($job_id/$total) t=$t $name"
 
 set +e
-python run_proof_protocol.py \
+"$PYTHON" run_proof_protocol.py \
   --protocol "$protocol" \
   --config "$config" \
   --t "$t" \
