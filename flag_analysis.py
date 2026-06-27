@@ -27,7 +27,7 @@ def _resolve_project_path(path: str | Path) -> Path:
     return (PROJECT_ROOT / p).resolve()
 
 
-from dimacs_bridge import build_dimacs, merge_dimacs_cnfs, resolve_cryptominisat_binary, run_cryptominisat, model_to_z3_assignment, pretty_print_z3_assignment, pretty_print_true_z3_vars
+from dimacs_bridge import build_dimacs, merge_dimacs_cnfs, resolve_cryptominisat_binary, run_cryptominisat, model_to_z3_assignment, pretty_print_z3_assignment, pretty_print_true_z3_vars, is_user_var
 
 from circuit_op import *
 from protocol import *
@@ -37,7 +37,7 @@ from qiskit import QuantumCircuit
 
 from z3 import BoolVal, Xor, Bool,simplify,substitute, And, Not,Or, PbLe, AtMost,ForAll, Implies, Exists, PbGe, AtLeast
 
-from z3 import Solver, unsat, sat, unknown
+from z3 import Solver, unsat, sat, unknown, is_true
 
 import ast
 from pathlib import Path
@@ -1300,6 +1300,36 @@ def _verify_witness_same_syn(gen_syn_z3, p1, p2, fault_vars, default_false=True)
     return bool(eval_with_values(same_syn, assignment, default_false=default_false))
 
 
+def _counterexample_from_z3_model(model):
+    """Extract p1/p2 fault dicts from a Z3 model over primed variables."""
+    p1, p2 = {}, {}
+    for d in model.decls():
+        if not is_true(model[d]):
+            continue
+        name = d.name()
+        if not is_user_var(name):
+            continue
+        if name.endswith("_p1"):
+            p1[name[:-3]] = True
+        elif name.endswith("_p2"):
+            p2[name[:-3]] = True
+    return p1, p2
+
+
+def _z3_sat_witness(goal, timeout_ms=3600000):
+    """Direct Z3 SAT on the uniqueness goal; returns (p1, p2) or None."""
+    s = Solver()
+    s.set("timeout", timeout_ms)
+    for a in goal:
+        s.add(a)
+    if s.check() != sat:
+        return None
+    p1, p2 = _counterexample_from_z3_model(s.model())
+    if not p1 or not p2:
+        return None
+    return p1, p2
+
+
 import subprocess
 import re
 from z3 import Then  # make sure Goal/Then exist in your imports
@@ -1333,6 +1363,7 @@ def uniqueness_solve_with_cryptominisat(
     keep_cnf_files: bool = True,
     witness_mode: str = "type1",
     verbose: bool = True,
+    cms_retries: int = 8,
 ):
     """
     Z3 -> CNF (DIMACS) -> CryptoMiniSat.
@@ -1444,42 +1475,63 @@ def uniqueness_solve_with_cryptominisat(
                     pass
         return status, model_lits, "".join(outputs), counterexample
 
-    st, lits, out, elapsed_s, rss_bytes = run_cryptominisat(
-        solve_cnf, cms_exec, timeout_s=timeout_s, cms_extra_args=cms_extra_args
-    )
-    total_solver_time_s += elapsed_s
-    peak_solver_rss_bytes = rss_bytes
+    collected_model_lits = None
+    st = "unknown"
+    for attempt in range(max(1, cms_retries)):
+        st, lits, out, elapsed_s, rss_bytes = run_cryptominisat(
+            solve_cnf, cms_exec, timeout_s=timeout_s, cms_extra_args=cms_extra_args
+        )
+        total_solver_time_s += elapsed_s
+        if rss_bytes is not None:
+            peak_solver_rss_bytes = (
+                rss_bytes if peak_solver_rss_bytes is None else max(peak_solver_rss_bytes, rss_bytes)
+            )
 
-    outputs.append(f"\n===== Solve : {st.upper()}  ({solve_cnf}) =====\n")
-    outputs.append(out)
+        outputs.append(
+            f"\n===== Solve attempt {attempt + 1} : {st.upper()}  ({solve_cnf}) =====\n"
+        )
+        outputs.append(out)
 
-    if st == "unsat":
-        if verbose:
-            print("UNSAT")
-            print("Success: uniqueness holds")
-        return finalize("unsat", None)
+        if st == "unsat":
+            if verbose:
+                print("UNSAT")
+                print("Success: uniqueness holds")
+            return finalize("unsat", None)
 
-    if st == "unknown":
-        return finalize("unknown", None)
+        if st == "unknown":
+            continue
 
-    collected_model_lits = lits
-    if st == "sat" and lits:
-        p1, p2 = pretty_print_true_z3_vars(lits, solve_vmap)
+        if st == "sat" and lits:
+            collected_model_lits = lits
+            p1, p2 = pretty_print_true_z3_vars(lits, solve_vmap)
+            if _verify_witness_same_syn(gen_syn_z3, p1, p2, vars):
+                counterexample = {"p1": p1, "p2": p2}
+                if verbose:
+                    print("p1 true vars:", p1)
+                    print("p2 true vars:", p2)
+                return finalize("sat", collected_model_lits)
+
+            outputs.append(
+                f"[warn] attempt {attempt + 1}: SAT model failed same_syn verification; retrying\n"
+            )
+
+    # CMS inconclusive or witness never verified — fall back to direct Z3
+    outputs.append("[info] falling back to Z3 solver for witness extraction\n")
+    z3_witness = _z3_sat_witness(g)
+    if z3_witness is not None:
+        p1, p2 = z3_witness
         if _verify_witness_same_syn(gen_syn_z3, p1, p2, vars):
             counterexample = {"p1": p1, "p2": p2}
-        else:
-            outputs.append(
-                "[warn] SAT model failed same_syn verification; treating as unknown\n"
-            )
+            outputs.append("[info] Z3 fallback witness verified same_syn\n")
             if verbose:
-                print("WARNING: SAT model did not satisfy same_syn; treating as unknown")
-            return finalize("unknown", lits)
+                print("p1 true vars (Z3 fallback):", p1)
+                print("p2 true vars (Z3 fallback):", p2)
+            return finalize("sat", collected_model_lits)
 
-        if verbose:
-            print("p1 true vars:", p1)
-            print("p2 true vars:", p2)
-
-    return finalize("sat", collected_model_lits)
+    outputs.append("[warn] no verified witness found; treating as unknown\n")
+    if verbose:
+        print("WARNING: no verified counterexample; treating as unknown")
+    return finalize("unknown", collected_model_lits)
     
 
 from copy import deepcopy
