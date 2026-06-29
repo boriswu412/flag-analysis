@@ -1284,6 +1284,230 @@ def uniqueness_build_goal(vars, at_most_t_faults, condition, gen_syn_z3,
     return g
 
 
+def uniqueness_build_goal_unified(
+    vars,
+    at_most_t_faults,
+    condition,
+    gen_syn_z3,
+    data_qubits,
+    stab_txt_path,
+    log_txt_path,
+):
+    """
+    Unified uniqueness goal: same_syn on extended gen_syn (LUT + pred_syn),
+    E1 != E2, E1·E2 not in stabilizer, E1/E2 not in stabilizer.
+    No syn_constraint in path conditions (caller responsibility).
+    """
+    E_x = [dq.x for dq in data_qubits]
+    E_z = [dq.z for dq in data_qubits]
+
+    ren_1 = make_renamer_from_symbols(vars, "_p1")
+    ren_2 = make_renamer_from_symbols(vars, "_p2")
+
+    condition_1 = primed_copy(condition, ren_1)
+    condition_2 = primed_copy(condition, ren_2)
+
+    E_x_1 = primed_copy(E_x, ren_1)
+    E_z_1 = primed_copy(E_z, ren_1)
+    E_x_2 = primed_copy(E_x, ren_2)
+    E_z_2 = primed_copy(E_z, ren_2)
+
+    at_most_t_faults_1 = primed_copy(at_most_t_faults, ren_1)
+    at_most_t_faults_2 = primed_copy(at_most_t_faults, ren_2)
+
+    gen_syn_z3_1 = primed_copy(gen_syn_z3, ren_1)
+    gen_syn_z3_2 = primed_copy(gen_syn_z3, ren_2)
+
+    neq_terms = [Or(ex1 != ex2, ez1 != ez2)
+                 for ex1, ez1, ex2, ez2 in zip(E_x_1, E_z_1, E_x_2, E_z_2)]
+    condition_E_1_neq_E_2_formula = Or(*neq_terms)
+
+    E_1_add_E_2_X = [Xor(ex1, ex2) for ex1, ex2 in zip(E_x_1, E_x_2)]
+    E_1_add_E_2_Z = [Xor(ez1, ez2) for ez1, ez2 in zip(E_z_1, E_z_2)]
+
+    condition_pauli_not_in_stab = pauli_not_in_stabilizer(
+        E_1_add_E_2_X, E_1_add_E_2_Z, stab_txt_path, log_txt_path
+    )
+    condition_E_1_not_in_stab = pauli_not_in_stabilizer(
+        E_x_1, E_z_1, stab_txt_path, log_txt_path
+    )
+    condition_E_2_not_in_stab = pauli_not_in_stabilizer(
+        E_x_2, E_z_2, stab_txt_path, log_txt_path
+    )
+
+    same_syn = And(*[x == y for x, y in zip(gen_syn_z3_1, gen_syn_z3_2)])
+
+    g = Goal()
+    g.add(same_syn)
+    g.add(And(*condition_1))
+    g.add(And(*condition_2))
+    g.add(at_most_t_faults_1)
+    g.add(at_most_t_faults_2)
+    g.add(condition_E_1_neq_E_2_formula)
+    g.add(condition_pauli_not_in_stab)
+    g.add(condition_E_1_not_in_stab)
+    g.add(condition_E_2_not_in_stab)
+    return g
+
+
+def uniqueness_export_dimacs_unified(
+    vars,
+    at_most_t_faults,
+    condition,
+    gen_syn_z3,
+    data_qubits,
+    stab_txt_path,
+    log_txt_path,
+    cnf_dir,
+    path_tag: str,
+    use_card2bv: bool = True,
+    num_lut_syn_bits: int = 0,
+    num_pred_syn_bits: int = 0,
+):
+    """Export unified uniqueness constraints to DIMACS (no solver)."""
+    cnf_dir = Path(cnf_dir)
+    cnf_dir.mkdir(parents=True, exist_ok=True)
+
+    g = uniqueness_build_goal_unified(
+        vars, at_most_t_faults, condition, gen_syn_z3,
+        data_qubits, stab_txt_path, log_txt_path,
+    )
+
+    old_cwd = os.getcwd()
+    os.chdir(cnf_dir)
+    temp_files = []
+    cnf_files = []
+    solve_vmap = {}
+    merged_cnf = None
+    try:
+        cnf_files, var_maps = build_dimacs(g, use_card2bv)
+        if not cnf_files:
+            raise RuntimeError(f"No CNF subgoals produced for {path_tag}")
+
+        solve_cnf = cnf_files[0]
+        solve_vmap = var_maps[0]
+        if len(cnf_files) > 1:
+            merged_cnf = f"{path_tag}_merged.cnf"
+            solve_vmap = merge_dimacs_cnfs(cnf_files, merged_cnf)
+            solve_cnf = merged_cnf
+
+        final_cnf = cnf_dir / f"{path_tag}.cnf"
+        solve_path = Path(solve_cnf)
+        if not solve_path.is_absolute():
+            solve_path = cnf_dir / solve_path
+        if solve_path.resolve() != final_cnf.resolve():
+            shutil.copy2(solve_path, final_cnf)
+
+        temp_files = list(cnf_files)
+        if merged_cnf and merged_cnf not in temp_files:
+            temp_files.append(merged_cnf)
+    finally:
+        os.chdir(old_cwd)
+        for p in temp_files:
+            try:
+                fp = cnf_dir / p if not os.path.isabs(p) else Path(p)
+                if fp.exists() and fp.name != f"{path_tag}.cnf":
+                    fp.unlink()
+            except OSError:
+                pass
+
+    final_cnf = cnf_dir / f"{path_tag}.cnf"
+    total_clauses, total_dimacs_vars = _count_cnf_stats(str(final_cnf))
+
+    var_map_path = cnf_dir / f"{path_tag}_var_map.json"
+    var_map_path.write_text(
+        json.dumps({str(k): _z3_bool_name(v) for k, v in solve_vmap.items()}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    fault_var_names = sorted({_z3_bool_name(v) for v in vars})
+    gen_syn_var_names = [_z3_bool_name(v) for v in gen_syn_z3]
+    meta = {
+        "path_tag": path_tag,
+        "witness_mode": "unified",
+        "verify_pipeline": "unified",
+        "fault_var_names": fault_var_names,
+        "gen_syn_var_names": gen_syn_var_names,
+        "num_lut_syn_bits": num_lut_syn_bits,
+        "num_pred_syn_bits": num_pred_syn_bits,
+        "num_fault_vars": len(fault_var_names),
+        "total_clauses": total_clauses,
+        "total_dimacs_vars": total_dimacs_vars,
+        "stab_txt_path": str(stab_txt_path),
+        "log_txt_path": str(log_txt_path),
+        "num_subgoals": len(cnf_files),
+    }
+    meta_path = cnf_dir / f"{path_tag}_meta.json"
+    meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+
+    return {
+        "path_tag": path_tag,
+        "cnf_path": str(final_cnf),
+        "total_clauses": total_clauses,
+        "total_dimacs_vars": total_dimacs_vars,
+        "num_fault_vars": len(fault_var_names),
+        "sat_query_count": len(cnf_files),
+    }
+
+
+def uniqueness_solve_with_cryptominisat_unified(
+    vars,
+    at_most_t_faults,
+    condition,
+    gen_syn_z3,
+    data_qubits,
+    stab_txt_path,
+    log_txt_path,
+    out_cnf: str = "uniq.cnf",
+    cms_bin: str = "cryptominisat5",
+    cms_extra_args: list = None,
+    use_card2bv: bool = True,
+    timeout_s: Optional[float] = None,
+    keep_cnf_files: bool = True,
+    verbose: bool = True,
+    cms_retries: int = 8,
+    num_lut_syn_bits: int = 0,
+    num_pred_syn_bits: int = 0,
+):
+    """Inline unified uniqueness solve via export-to-temp + CryptoMiniSat."""
+    import tempfile
+
+    path_tag = Path(out_cnf).stem if out_cnf.endswith(".cnf") else (out_cnf or "uniq")
+    with tempfile.TemporaryDirectory(prefix="unified_solve_") as td:
+        uniqueness_export_dimacs_unified(
+            vars,
+            at_most_t_faults,
+            condition,
+            gen_syn_z3,
+            data_qubits,
+            stab_txt_path,
+            log_txt_path,
+            td,
+            path_tag,
+            use_card2bv=use_card2bv,
+            num_lut_syn_bits=num_lut_syn_bits,
+            num_pred_syn_bits=num_pred_syn_bits,
+        )
+        st, counterexample, stats = uniqueness_solve_from_export(
+            td,
+            path_tag,
+            cms_bin=cms_bin,
+            cms_extra_args=cms_extra_args,
+            timeout_s=timeout_s,
+            cms_retries=cms_retries,
+            verbose=verbose,
+        )
+
+    out_lines = [
+        f"[stats] total_solver_time_seconds={stats.get('solver_runtime_seconds', 0.0):.6f}",
+        f"[stats] total_clauses={stats.get('total_clauses', 0)}",
+        f"[stats] total_dimacs_vars={stats.get('total_dimacs_vars', 0)}",
+        f"[stats] peak_solver_rss_bytes={stats.get('peak_solver_rss_bytes', 0)}",
+    ]
+    out = "\n".join(out_lines) + "\n"
+    return st, None, out, counterexample
+
+
 def _verify_witness_same_syn(gen_syn_z3, p1, p2, fault_vars, default_false=True):
     """Check that extracted p1/p2 satisfy the same_syn constraint."""
     if not gen_syn_z3:
@@ -1338,13 +1562,221 @@ from z3 import Then  # make sure Goal/Then exist in your imports
 ##-----------------------
 # solve uniqueness constraints with CryptoMiniSat
 ####
+import json
 import os, re, shutil, subprocess
-from typing import List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional
 
 
 
 
 
+
+
+
+import json
+
+
+def _z3_bool_name(expr) -> str:
+    try:
+        return expr.decl().name()
+    except Exception:
+        return str(expr)
+
+
+def _count_cnf_stats(cnf_path: str):
+    total_clauses = 0
+    total_dimacs_vars = 0
+    try:
+        with open(cnf_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("p cnf "):
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        total_dimacs_vars = int(parts[2])
+                        total_clauses = int(parts[3])
+                    break
+    except (OSError, ValueError):
+        pass
+    return total_clauses, total_dimacs_vars
+
+
+def uniqueness_export_dimacs(
+    vars,
+    at_most_t_faults,
+    condition,
+    gen_syn_z3,
+    data_qubits,
+    stab_txt_path,
+    log_txt_path,
+    cnf_dir,
+    path_tag: str,
+    witness_mode: str = "type1",
+    use_card2bv: bool = True,
+):
+    """Build Z3 goal, convert to merged DIMACS, write path_tag.cnf + sidecar JSON."""
+    cnf_dir = Path(cnf_dir)
+    cnf_dir.mkdir(parents=True, exist_ok=True)
+
+    g = uniqueness_build_goal(
+        vars, at_most_t_faults, condition, gen_syn_z3,
+        data_qubits, stab_txt_path, log_txt_path, witness_mode=witness_mode,
+    )
+
+    old_cwd = os.getcwd()
+    os.chdir(cnf_dir)
+    temp_files = []
+    cnf_files = []
+    solve_vmap = {}
+    merged_cnf = None
+    try:
+        cnf_files, var_maps = build_dimacs(g, use_card2bv)
+        if not cnf_files:
+            raise RuntimeError(f"No CNF subgoals produced for {path_tag}")
+
+        solve_cnf = cnf_files[0]
+        solve_vmap = var_maps[0]
+        if len(cnf_files) > 1:
+            merged_cnf = f"{path_tag}_merged.cnf"
+            solve_vmap = merge_dimacs_cnfs(cnf_files, merged_cnf)
+            solve_cnf = merged_cnf
+
+        final_cnf = cnf_dir / f"{path_tag}.cnf"
+        solve_path = Path(solve_cnf)
+        if not solve_path.is_absolute():
+            solve_path = cnf_dir / solve_path
+        if solve_path.resolve() != final_cnf.resolve():
+            shutil.copy2(solve_path, final_cnf)
+
+        temp_files = list(cnf_files)
+        if merged_cnf and merged_cnf not in temp_files:
+            temp_files.append(merged_cnf)
+    finally:
+        os.chdir(old_cwd)
+        for p in temp_files:
+            try:
+                fp = cnf_dir / p if not os.path.isabs(p) else Path(p)
+                if fp.exists() and fp.name != f"{path_tag}.cnf":
+                    fp.unlink()
+            except OSError:
+                pass
+
+    final_cnf = cnf_dir / f"{path_tag}.cnf"
+    total_clauses, total_dimacs_vars = _count_cnf_stats(str(final_cnf))
+
+    var_map_path = cnf_dir / f"{path_tag}_var_map.json"
+    var_map_path.write_text(
+        json.dumps({str(k): _z3_bool_name(v) for k, v in solve_vmap.items()}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    fault_var_names = sorted({_z3_bool_name(v) for v in vars})
+    gen_syn_var_names = [_z3_bool_name(v) for v in gen_syn_z3]
+    meta = {
+        "path_tag": path_tag,
+        "witness_mode": witness_mode,
+        "fault_var_names": fault_var_names,
+        "gen_syn_var_names": gen_syn_var_names,
+        "num_fault_vars": len(fault_var_names),
+        "total_clauses": total_clauses,
+        "total_dimacs_vars": total_dimacs_vars,
+        "stab_txt_path": str(stab_txt_path),
+        "log_txt_path": str(log_txt_path),
+        "num_subgoals": len(cnf_files),
+    }
+    meta_path = cnf_dir / f"{path_tag}_meta.json"
+    meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+
+    return {
+        "path_tag": path_tag,
+        "cnf_path": str(final_cnf),
+        "total_clauses": total_clauses,
+        "total_dimacs_vars": total_dimacs_vars,
+        "num_fault_vars": len(fault_var_names),
+        "sat_query_count": len(cnf_files),
+    }
+
+
+def _load_export_sidecars(cnf_dir, path_tag: str):
+    cnf_dir = Path(cnf_dir)
+    cnf_path = cnf_dir / f"{path_tag}.cnf"
+    var_map_path = cnf_dir / f"{path_tag}_var_map.json"
+    meta_path = cnf_dir / f"{path_tag}_meta.json"
+    if not cnf_path.is_file():
+        raise FileNotFoundError(f"Missing CNF: {cnf_path}")
+    if not var_map_path.is_file():
+        raise FileNotFoundError(f"Missing var map: {var_map_path}")
+    if not meta_path.is_file():
+        raise FileNotFoundError(f"Missing meta: {meta_path}")
+
+    var_map_raw = json.loads(var_map_path.read_text(encoding="utf-8"))
+    var_map = {int(k): Bool(v) for k, v in var_map_raw.items()}
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    return cnf_path, var_map, meta
+
+
+def uniqueness_solve_from_export(
+    cnf_dir,
+    path_tag: str,
+    cms_bin: str = "cryptominisat5",
+    cms_extra_args=None,
+    timeout_s=None,
+    cms_retries: int = 8,
+    verbose: bool = False,
+):
+    """Solve a previously exported path CNF. Returns (status, counterexample, stats)."""
+    cnf_dir = Path(cnf_dir)
+    cnf_path, var_map, meta = _load_export_sidecars(cnf_dir, path_tag)
+    cms_exec = resolve_cryptominisat_binary(cms_bin)
+
+    gen_syn_z3 = [Bool(n) for n in meta.get("gen_syn_var_names", [])]
+    fault_vars = [Bool(n) for n in meta.get("fault_var_names", [])]
+
+    total_solver_time_s = 0.0
+    peak_solver_rss_bytes = None
+    counterexample = None
+    st = "unknown"
+
+    for _attempt in range(max(1, cms_retries)):
+        st, lits, _out, elapsed_s, rss_bytes = run_cryptominisat(
+            str(cnf_path), cms_exec, timeout_s=timeout_s, cms_extra_args=cms_extra_args,
+        )
+        total_solver_time_s += elapsed_s
+        if rss_bytes is not None:
+            peak_solver_rss_bytes = (
+                rss_bytes if peak_solver_rss_bytes is None else max(peak_solver_rss_bytes, rss_bytes)
+            )
+
+        if st == "unsat":
+            break
+        if st == "unknown":
+            continue
+        if st == "sat" and lits:
+            p1, p2 = pretty_print_true_z3_vars(lits, var_map, do_print=False)
+            if _verify_witness_same_syn(gen_syn_z3, p1, p2, fault_vars):
+                counterexample = {"p1": p1, "p2": p2}
+                break
+            st = "unknown"
+
+    total_clauses = meta.get("total_clauses", 0)
+    total_dimacs_vars = meta.get("total_dimacs_vars", 0)
+    if not total_clauses:
+        total_clauses, total_dimacs_vars = _count_cnf_stats(str(cnf_path))
+
+    stats = {
+        "solver_runtime_seconds": total_solver_time_s,
+        "peak_solver_rss_bytes": peak_solver_rss_bytes or 0,
+        "total_clauses": total_clauses,
+        "total_dimacs_vars": total_dimacs_vars,
+        "sat_query_count": meta.get("num_subgoals", 1),
+        "num_fault_vars": meta.get("num_fault_vars", len(fault_vars)),
+        "status": st,
+    }
+    if verbose and st == "unsat":
+        print("UNSAT")
+    elif verbose and st == "sat" and counterexample:
+        print("SAT counterexample found")
+
+    return st, counterexample, stats
 
 
 def uniqueness_solve_with_cryptominisat(

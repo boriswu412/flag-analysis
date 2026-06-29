@@ -11,13 +11,19 @@ filter_jobs() {
 }
 
 TOTAL=$(filter_jobs | wc -l | tr -d ' ')
-echo "Running $TOTAL job(s) from jobs.txt (up to 4 in parallel)..."
+PARALLEL_JOBS="${PARALLEL_JOBS:-$(nproc)}"
+if (( PARALLEL_JOBS > TOTAL )); then
+  PARALLEL_JOBS=$TOTAL
+fi
+
+echo "Running $TOTAL job(s) from jobs.txt (up to $PARALLEL_JOBS in parallel, $(nproc) cores available)..."
+echo "  Override: PARALLEL_JOBS=N bash scripts/run_batch.sh"
 echo ""
 echo "Jobs:"
 filter_jobs | awk -F '\t' 'NF >= 2 { printf "  %d. t=%s  %s\n", ++n, ($3 == "" ? 1 : $3), $2 }'
 echo ""
 
-filter_jobs | parallel -j 4 --colsep '\t' --line-buffer --joblog run.log \
+filter_jobs | parallel -j "$PARALLEL_JOBS" --colsep '\t' --line-buffer --joblog run.log \
   "$ROOT/scripts/run_one_job.sh" {1} {2} {3} {#} "$TOTAL"
 
 echo ""

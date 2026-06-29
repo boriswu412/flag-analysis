@@ -1,0 +1,16 @@
+Verify pipeline: unified (gen_syn + pred_syn, no syn_constraint)
+================================================================================
+Max faults per path (t): 1
+Total number of paths: 5
+Per-path SAT metrics:
+  path_idx | type | last_instr              | status | gate_count | runtime_s | peak_rss_mb | fault_vars | dimacs_vars | total_clauses | sat_query_count
+        1 |    1 | raw_syndrome (raw)      | unsat   |         40 |  0.033783 |      77.133 |        160 |         665 |          4830 |               1
+        2 |    1 | raw_syndrome (raw)      | unsat   |         34 |  0.032485 |      83.059 |        136 |         573 |          4132 |               1
+        3 |    1 | raw_syndrome (raw)      | unsat   |         28 |  0.028767 |      86.000 |        112 |         481 |          3470 |               1
+        4 |    1 | raw_syndrome (raw)      | unsat   |         22 |  0.017597 |      87.602 |         88 |         388 |          2710 |               1
+Total runtime (sum of all paths): 0.112632 s
+Total SAT paths: 0/4
+Max fault variables (across paths): 160
+Max DIMACS variables (across paths): 665
+Max peak RSS (across paths): 87.602 MB
+================================================================================

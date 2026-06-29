@@ -11,6 +11,8 @@ jobs.txt
 
 # SAT solver artifacts
 *.cnf
+cnf_out/
+cnf_out_unified/
 
 # OS
 .DS_Store

@@ -1156,8 +1156,129 @@ def proof_path(path : list[dict], t : int , gen_syn : list ,all_condtion : list,
     query_stats["num_fault_vars"] = num_fault_vars
     query_stats["num_fault_sites"] = num_fault_sites
     return status, counterexample, query_stats
-    
-    # Add fault constraints if needed
-    
 
-    return simplify(path_formula)
+
+def proof_path_unified(path: list, t: int, config: Dict, query_tag: str = "uniq"):
+    """Solve one path with unified gen_syn + pred_syn constraints."""
+    from dimacs_export_protocol import build_unified_path_constraint
+    from flag_analysis import uniqueness_solve_with_cryptominisat_unified
+
+    constraint = build_unified_path_constraint(path, t, config)
+    status, _model_lits, out, counterexample = uniqueness_solve_with_cryptominisat_unified(
+        constraint.vars,
+        constraint.at_most_t_faults,
+        constraint.condition,
+        constraint.gen_syn_z3,
+        constraint.data_qubits,
+        constraint.stab_txt_path,
+        constraint.log_txt_path,
+        out_cnf=f"{query_tag}.cnf",
+        verbose=False,
+        keep_cnf_files=False,
+        num_lut_syn_bits=constraint.num_lut_syn_bits,
+        num_pred_syn_bits=constraint.num_pred_syn_bits,
+    )
+    query_stats = _parse_solver_metrics(out, query_tag)
+    query_stats["num_fault_vars"] = constraint.num_fault_vars
+    query_stats["num_fault_sites"] = constraint.num_fault_sites
+    return status, counterexample, query_stats
+
+
+def proof_protocol_unified(protocol, start_node: str, init_state, config: Dict, t: int):
+    """Export unified CNFs then solve each path (parallel pipeline inline)."""
+    from dimacs_export_protocol import export_unified_path_constraints, _resolve_unified_cnf_dir
+    from flag_analysis import uniqueness_solve_from_export
+
+    quiet = bool(config.get("__quiet__", False))
+    cnf_dir = config.get("unified_cnf_dir")
+
+    all_paths, path_query_stats = export_unified_path_constraints(
+        protocol, start_node, init_state, config, t, cnf_dir=cnf_dir,
+        protocol_path=config.get("protocol_path"),
+    )
+
+    out_dir = _resolve_unified_cnf_dir(config, cnf_dir)
+
+    solved_stats: List[Dict[str, Any]] = []
+    for row in path_query_stats:
+        if row.get("status") != "exported":
+            solved_stats.append(row)
+            continue
+        path_tag = row["path_tag"]
+        status, counterexample, stats = uniqueness_solve_from_export(
+            out_dir, path_tag, verbose=False,
+        )
+        solved_stats.append({
+            **row,
+            "status": status,
+            "solver_runtime_seconds": stats.get("solver_runtime_seconds", 0.0),
+            "peak_solver_rss_bytes": stats.get("peak_solver_rss_bytes", 0),
+            "total_clauses": stats.get("total_clauses", row.get("total_clauses", 0)),
+            "total_dimacs_vars": stats.get("total_dimacs_vars", row.get("total_dimacs_vars", 0)),
+            "sat_query_count": stats.get("sat_query_count", row.get("sat_query_count", 0)),
+            "num_fault_vars": stats.get("num_fault_vars", row.get("num_fault_vars", 0)),
+        })
+        if not quiet:
+            print(f"Unified path {row['path_index']}: {status.upper()}")
+
+    path_query_stats = solved_stats
+
+    def _resolve_unified_metrics_path(cfg: Dict[str, Any]) -> Path:
+        metrics_dir = cfg.get("metrics_dir")
+        if metrics_dir:
+            base_dir = Path(metrics_dir)
+        elif cfg.get("__config_dir__"):
+            base_dir = Path(cfg["__config_dir__"])
+        else:
+            stab_path = cfg.get("stab_txt_path")
+            base_dir = Path(stab_path).parent if stab_path else Path.cwd()
+        cfg_path = cfg.get("__config_path__")
+        stem = Path(cfg_path).stem if cfg_path else "unified"
+        return base_dir / f"{stem}_unified_proof_metrics.txt"
+
+    report_lines: List[str] = []
+    report_lines.append("=" * 80)
+    report_lines.append(f"Verify pipeline: unified (gen_syn + pred_syn, no syn_constraint)")
+    report_lines.append(f"Max faults per path (t): {t}")
+    report_lines.append(f"Total number of paths: {len(all_paths)}")
+    report_lines.append("Per-path SAT metrics:")
+    report_lines.append(
+        "  path_idx | type | last_instr              | status | gate_count | runtime_s | "
+        "peak_rss_mb | fault_vars | dimacs_vars | total_clauses | sat_query_count"
+    )
+    for row in sorted(path_query_stats, key=lambda r: r["path_index"]):
+        peak_rss_bytes = row.get("peak_solver_rss_bytes", 0) or 0
+        peak_rss_mb = peak_rss_bytes / (1024 * 1024)
+        report_lines.append(
+            "  "
+            f"{row['path_index']:>7} | "
+            f"{row['path_type']:>4} | "
+            f"{row.get('last_instr', ''):<23} | "
+            f"{row['status']:<7} | "
+            f"{row.get('gate_count', 0):>10} | "
+            f"{row.get('solver_runtime_seconds', 0.0):>9.6f} | "
+            f"{peak_rss_mb:>11.3f} | "
+            f"{row.get('num_fault_vars', 0):>10} | "
+            f"{row.get('total_dimacs_vars', 0):>11} | "
+            f"{row.get('total_clauses', 0):>13} | "
+            f"{row.get('sat_query_count', 0):>15}"
+        )
+    total_runtime_s = sum(row.get("solver_runtime_seconds", 0.0) or 0.0 for row in path_query_stats)
+    total_sat_paths = sum(1 for row in path_query_stats if row.get("status") == "sat")
+    verified = [r for r in path_query_stats if r.get("status") in ("unsat", "sat", "unknown")]
+    report_lines.append(f"Total runtime (sum of all paths): {total_runtime_s:.6f} s")
+    report_lines.append(f"Total SAT paths: {total_sat_paths}/{len(verified)}")
+    report_lines.append("=" * 80)
+
+    report_path = _resolve_unified_metrics_path(config)
+    try:
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text("\n".join(report_lines) + "\n")
+    except OSError as e:
+        print(f"Warning: failed to write unified metrics report: {e}")
+
+    if not quiet:
+        print("\n".join(report_lines))
+        print(f"Unified metrics report saved to: {report_path}")
+
+    return all_paths, path_query_stats
